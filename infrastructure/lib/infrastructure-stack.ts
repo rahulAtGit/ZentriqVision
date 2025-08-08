@@ -1,6 +1,7 @@
 import * as cdk from "aws-cdk-lib";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as cognito from "aws-cdk-lib/aws-cognito";
+import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import { Construct } from "constructs";
 
 export class ZentriqVisionStack extends cdk.Stack {
@@ -94,8 +95,40 @@ export class ZentriqVisionStack extends cdk.Stack {
       }
     );
 
+    // 3. DynamoDB table for data storage (Single-Table Design)
+    const dataTable = new dynamodb.Table(this, "ZentriqVisionDataTable", {
+      tableName: "zentriqvision-data",
+      partitionKey: { name: "PK", type: dynamodb.AttributeType.STRING },
+      sortKey: { name: "SK", type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true,
+      },
+    });
+
+    // GSI1 for attribute-based queries (color, emotion, age, etc.)
+    dataTable.addGlobalSecondaryIndex({
+      indexName: "AttributeIndex",
+      partitionKey: { name: "GSI1PK", type: dynamodb.AttributeType.STRING },
+      sortKey: { name: "GSI1SK", type: dynamodb.AttributeType.STRING },
+    });
+
+    // GSI2 for video-based queries
+    dataTable.addGlobalSecondaryIndex({
+      indexName: "VideoIndex",
+      partitionKey: { name: "GSI2PK", type: dynamodb.AttributeType.STRING },
+      sortKey: { name: "GSI2SK", type: dynamodb.AttributeType.STRING },
+    });
+
+    // GSI3 for time-based queries
+    dataTable.addGlobalSecondaryIndex({
+      indexName: "TimeIndex",
+      partitionKey: { name: "GSI3PK", type: dynamodb.AttributeType.STRING },
+      sortKey: { name: "GSI3SK", type: dynamodb.AttributeType.STRING },
+    });
+
     // TODO: We'll add more resources here step by step
-    // 3. DynamoDB table for data storage
     // 4. Lambda functions for APIs
     // 5. API Gateway for REST APIs
     // 6. SNS topics for notifications
