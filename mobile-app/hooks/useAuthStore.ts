@@ -1,115 +1,127 @@
 import { create } from 'zustand';
-import { AuthState, User } from '../types';
+import { authService, AuthUser, SignUpData, SignInData, AuthError } from '../services/auth';
 
-interface AuthStore extends AuthState {
-  // Actions
+interface AuthState {
+  user: AuthUser | null;
+  isLoading: boolean;
+  error: string | null;
+  isAuthenticated: boolean;
+}
+
+interface AuthActions {
   initializeAuth: () => Promise<void>;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, givenName: string, phone?: string) => Promise<void>;
+  signIn: (data: SignInData) => Promise<void>;
+  signUp: (data: SignUpData) => Promise<void>;
+  confirmSignUp: (email: string, code: string) => Promise<void>;
   signOut: () => Promise<void>;
-  setUser: (user: User) => void;
+  clearError: () => void;
+  setUser: (user: AuthUser | null) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
 }
 
+type AuthStore = AuthState & AuthActions;
+
 export const useAuthStore = create<AuthStore>((set, get) => ({
-  // Initial state
-  isAuthenticated: false,
+  // State
   user: null,
-  loading: false,
+  isLoading: false,
   error: null,
+  isAuthenticated: false,
 
   // Actions
   initializeAuth: async () => {
-    set({ loading: true });
+    set({ isLoading: true, error: null });
     try {
-      // TODO: Check for existing auth session
-      // This will be implemented when we add Cognito integration
-      set({ loading: false });
+      const isAuthenticated = await authService.isAuthenticated();
+      if (isAuthenticated) {
+        const user = await authService.getCurrentUser();
+        set({ user, isAuthenticated: !!user, isLoading: false });
+      } else {
+        set({ user: null, isAuthenticated: false, isLoading: false });
+      }
     } catch (error) {
+      console.error('Initialize auth error:', error);
       set({ 
-        loading: false, 
-        error: error instanceof Error ? error.message : 'Authentication failed' 
+        user: null, 
+        isAuthenticated: false, 
+        isLoading: false, 
+        error: error instanceof Error ? error.message : 'Failed to initialize authentication' 
       });
     }
   },
 
-  signIn: async (email: string, password: string) => {
-    set({ loading: true, error: null });
+  signIn: async (data: SignInData) => {
+    set({ isLoading: true, error: null });
     try {
-      // TODO: Implement Cognito sign in
-      // For now, we'll simulate authentication
-      const mockUser: User = {
-        userId: 'user123',
-        email,
-        givenName: 'Test User',
-        orgId: 'org123',
-        createdAt: new Date().toISOString(),
-      };
-      
-      set({ 
-        isAuthenticated: true, 
-        user: mockUser, 
-        loading: false 
-      });
+      await authService.signIn(data);
+      const user = await authService.getCurrentUser();
+      set({ user, isAuthenticated: !!user, isLoading: false });
     } catch (error) {
+      console.error('Sign in error:', error);
+      const authError = error as AuthError;
       set({ 
-        loading: false, 
-        error: error instanceof Error ? error.message : 'Sign in failed' 
+        isLoading: false, 
+        error: authError.message || 'Failed to sign in' 
       });
     }
   },
 
-  signUp: async (email: string, password: string, givenName: string, phone?: string) => {
-    set({ loading: true, error: null });
+  signUp: async (data: SignUpData) => {
+    set({ isLoading: true, error: null });
     try {
-      // TODO: Implement Cognito sign up
-      // For now, we'll simulate registration
-      const mockUser: User = {
-        userId: 'user123',
-        email,
-        givenName,
-        phone,
-        orgId: 'org123',
-        createdAt: new Date().toISOString(),
-      };
-      
-      set({ 
-        isAuthenticated: true, 
-        user: mockUser, 
-        loading: false 
-      });
+      await authService.signUp(data);
+      set({ isLoading: false });
     } catch (error) {
+      console.error('Sign up error:', error);
+      const authError = error as AuthError;
       set({ 
-        loading: false, 
-        error: error instanceof Error ? error.message : 'Sign up failed' 
+        isLoading: false, 
+        error: authError.message || 'Failed to sign up' 
+      });
+    }
+  },
+
+  confirmSignUp: async (email: string, code: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      await authService.confirmSignUp(email, code);
+      set({ isLoading: false });
+    } catch (error) {
+      console.error('Confirm sign up error:', error);
+      const authError = error as AuthError;
+      set({ 
+        isLoading: false, 
+        error: authError.message || 'Failed to confirm sign up' 
       });
     }
   },
 
   signOut: async () => {
-    set({ loading: true });
+    set({ isLoading: true, error: null });
     try {
-      // TODO: Implement Cognito sign out
-      set({ 
-        isAuthenticated: false, 
-        user: null, 
-        loading: false 
-      });
+      await authService.signOut();
+      set({ user: null, isAuthenticated: false, isLoading: false });
     } catch (error) {
+      console.error('Sign out error:', error);
+      const authError = error as AuthError;
       set({ 
-        loading: false, 
-        error: error instanceof Error ? error.message : 'Sign out failed' 
+        isLoading: false, 
+        error: authError.message || 'Failed to sign out' 
       });
     }
   },
 
-  setUser: (user: User) => {
-    set({ user, isAuthenticated: true });
+  clearError: () => {
+    set({ error: null });
+  },
+
+  setUser: (user: AuthUser | null) => {
+    set({ user, isAuthenticated: !!user });
   },
 
   setLoading: (loading: boolean) => {
-    set({ loading });
+    set({ isLoading: loading });
   },
 
   setError: (error: string | null) => {

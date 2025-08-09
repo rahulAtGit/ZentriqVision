@@ -1,28 +1,42 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
-import { useAuthStore } from '../hooks/useAuthStore';
-import { useApi } from '../hooks/useApi';
-import { UploadManager, UploadProgress } from '../utils/upload';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  ScrollView,
+  ActivityIndicator,
+} from "react-native";
+import { useRouter } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
+import { useAuthStore } from "../hooks/useAuthStore";
+import { useApi } from "../hooks/useApi";
+import { UploadManager, UploadProgress } from "../utils/upload";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function UploadScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
   const { useUploadVideo } = useApi();
   const uploadVideoMutation = useUploadVideo();
-  
+
   const [selectedVideo, setSelectedVideo] = useState<any>(null);
-  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(
+    null
+  );
   const [uploading, setUploading] = useState(false);
 
   const pickVideo = async () => {
     try {
       // Request permissions
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Please grant permission to access your media library');
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission needed",
+          "Please grant permission to access your media library"
+        );
         return;
       }
 
@@ -35,29 +49,32 @@ export default function UploadScreen() {
 
       if (!result.canceled && result.assets[0]) {
         const video = result.assets[0];
-        
+
         // Validate video file
         const validation = UploadManager.validateVideoFile(video.uri);
         if (!validation.isValid) {
-          Alert.alert('Invalid File', validation.error || 'Please select a valid video file');
+          Alert.alert(
+            "Invalid File",
+            validation.error || "Please select a valid video file"
+          );
           return;
         }
 
         setSelectedVideo(video);
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to pick video');
+      Alert.alert("Error", "Failed to pick video");
     }
   };
 
   const uploadVideo = async () => {
     if (!selectedVideo) {
-      Alert.alert('Error', 'Please select a video first');
+      Alert.alert("Error", "Please select a video first");
       return;
     }
 
     if (!user) {
-      Alert.alert('Error', 'Please sign in to upload videos');
+      Alert.alert("Error", "Please sign in to upload videos");
       return;
     }
 
@@ -68,13 +85,13 @@ export default function UploadScreen() {
       // Step 1: Get presigned URL from our API
       const uploadData = {
         fileName: selectedVideo.fileName || `video_${Date.now()}.mp4`,
-        fileType: selectedVideo.type || 'video/mp4',
+        fileType: selectedVideo.type || "video/mp4",
       };
 
       const uploadResponse = await uploadVideoMutation.mutateAsync(uploadData);
-      
+
       if (!uploadResponse.presignedUrl) {
-        throw new Error('Failed to get upload URL');
+        throw new Error("Failed to get upload URL");
       }
 
       // Step 2: Upload to S3 using presigned URL
@@ -88,11 +105,11 @@ export default function UploadScreen() {
 
       if (uploadResult.success) {
         Alert.alert(
-          'Success',
-          'Video uploaded successfully! It will be processed shortly.',
+          "Success",
+          "Video uploaded successfully! It will be processed shortly.",
           [
             {
-              text: 'OK',
+              text: "OK",
               onPress: () => {
                 setSelectedVideo(null);
                 setUploadProgress(null);
@@ -102,11 +119,14 @@ export default function UploadScreen() {
           ]
         );
       } else {
-        throw new Error(uploadResult.error || 'Upload failed');
+        throw new Error(uploadResult.error || "Upload failed");
       }
     } catch (error) {
-      console.error('Upload error:', error);
-      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to upload video');
+      console.error("Upload error:", error);
+      Alert.alert(
+        "Error",
+        error instanceof Error ? error.message : "Failed to upload video"
+      );
     } finally {
       setUploading(false);
       setUploadProgress(null);
@@ -128,11 +148,13 @@ export default function UploadScreen() {
         {/* Video Selection */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Select Video</Text>
-          
+
           {selectedVideo ? (
             <View style={styles.selectedVideo}>
               <Ionicons name="videocam" size={48} color="#007AFF" />
-              <Text style={styles.videoName}>{selectedVideo.fileName || 'Selected Video'}</Text>
+              <Text style={styles.videoName}>
+                {selectedVideo.fileName || "Selected Video"}
+              </Text>
               <Text style={styles.videoSize}>
                 {UploadManager.formatFileSize(selectedVideo.fileSize || 0)}
               </Text>
@@ -161,15 +183,17 @@ export default function UploadScreen() {
             <Text style={styles.sectionTitle}>Upload Progress</Text>
             <View style={styles.progressContainer}>
               <View style={styles.progressBar}>
-                <View 
+                <View
                   style={[
-                    styles.progressFill, 
-                    { width: `${uploadProgress.percentage}%` }
-                  ]} 
+                    styles.progressFill,
+                    { width: `${uploadProgress.percentage}%` },
+                  ]}
                 />
               </View>
               <Text style={styles.progressText}>
-                {formatProgress(uploadProgress)} - {UploadManager.formatFileSize(uploadProgress.loaded)} / {UploadManager.formatFileSize(uploadProgress.total)}
+                {formatProgress(uploadProgress)} -{" "}
+                {UploadManager.formatFileSize(uploadProgress.loaded)} /{" "}
+                {UploadManager.formatFileSize(uploadProgress.total)}
               </Text>
             </View>
           </View>
@@ -196,7 +220,7 @@ export default function UploadScreen() {
         <TouchableOpacity
           style={[
             styles.uploadButton,
-            (!selectedVideo || uploading) && styles.uploadButtonDisabled
+            (!selectedVideo || uploading) && styles.uploadButtonDisabled,
           ]}
           onPress={uploadVideo}
           disabled={!selectedVideo || uploading}
@@ -218,20 +242,20 @@ export default function UploadScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
   },
   content: {
     padding: 20,
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1c1c1e',
+    fontWeight: "bold",
+    color: "#1c1c1e",
     marginBottom: 5,
   },
   subtitle: {
     fontSize: 16,
-    color: '#8e8e93',
+    color: "#8e8e93",
     marginBottom: 30,
   },
   section: {
@@ -239,37 +263,37 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 15,
-    color: '#1c1c1e',
+    color: "#1c1c1e",
   },
   uploadArea: {
-    backgroundColor: 'white',
+    backgroundColor: "white",
     borderRadius: 12,
     padding: 40,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 2,
-    borderColor: '#e5e5ea',
-    borderStyle: 'dashed',
+    borderColor: "#e5e5ea",
+    borderStyle: "dashed",
   },
   uploadText: {
     fontSize: 18,
-    fontWeight: '500',
-    color: '#1c1c1e',
+    fontWeight: "500",
+    color: "#1c1c1e",
     marginTop: 15,
     marginBottom: 5,
   },
   uploadSubtext: {
     fontSize: 14,
-    color: '#8e8e93',
-    textAlign: 'center',
+    color: "#8e8e93",
+    textAlign: "center",
   },
   selectedVideo: {
-    backgroundColor: 'white',
+    backgroundColor: "white",
     borderRadius: 12,
     padding: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
+    alignItems: "center",
+    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
@@ -280,32 +304,32 @@ const styles = StyleSheet.create({
   },
   videoName: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#1c1c1e',
+    fontWeight: "500",
+    color: "#1c1c1e",
     marginTop: 10,
     marginBottom: 5,
   },
   videoSize: {
     fontSize: 14,
-    color: '#8e8e93',
+    color: "#8e8e93",
     marginBottom: 15,
   },
   changeButton: {
-    backgroundColor: '#f2f2f7',
+    backgroundColor: "#f2f2f7",
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
   },
   changeButtonText: {
-    color: '#007AFF',
+    color: "#007AFF",
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   progressContainer: {
-    backgroundColor: 'white',
+    backgroundColor: "white",
     borderRadius: 12,
     padding: 20,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
@@ -316,29 +340,29 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     height: 8,
-    backgroundColor: '#f2f2f7',
+    backgroundColor: "#f2f2f7",
     borderRadius: 4,
-    overflow: 'hidden',
+    overflow: "hidden",
     marginBottom: 10,
   },
   progressFill: {
-    height: '100%',
-    backgroundColor: '#007AFF',
+    height: "100%",
+    backgroundColor: "#007AFF",
     borderRadius: 4,
   },
   progressText: {
     fontSize: 14,
-    color: '#8e8e93',
-    textAlign: 'center',
+    color: "#8e8e93",
+    textAlign: "center",
   },
   settingItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "white",
     padding: 15,
     borderRadius: 12,
     marginBottom: 10,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
@@ -349,17 +373,17 @@ const styles = StyleSheet.create({
   },
   settingText: {
     fontSize: 16,
-    color: '#1c1c1e',
+    color: "#1c1c1e",
     marginLeft: 10,
   },
   uploadButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: "#007AFF",
     borderRadius: 12,
     padding: 15,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
@@ -369,12 +393,12 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   uploadButtonDisabled: {
-    backgroundColor: '#8e8e93',
+    backgroundColor: "#8e8e93",
   },
   uploadButtonText: {
-    color: 'white',
+    color: "white",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     marginLeft: 8,
   },
 });

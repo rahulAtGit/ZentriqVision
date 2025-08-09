@@ -1,59 +1,79 @@
+import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
 import { useAuthStore } from '../hooks/useAuthStore';
+import { initializeAmplify } from '../config/amplify';
 
-const queryClient = new QueryClient();
+// Create a client
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 2,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+    },
+  },
+});
 
 export default function RootLayout() {
-  const { initializeAuth } = useAuthStore();
+  const { initializeAuth, isAuthenticated, isLoading } = useAuthStore();
 
   useEffect(() => {
-    // Initialize authentication state
+    // Initialize Amplify
+    initializeAmplify();
+    
+    // Initialize authentication
     initializeAuth();
-  }, [initializeAuth]);
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Stack>
-        <Stack.Screen 
-          name="index" 
-          options={{ 
+      <Stack
+        screenOptions={{
+          headerStyle: {
+            backgroundColor: '#007AFF',
+          },
+          headerTintColor: '#fff',
+          headerTitleStyle: {
+            fontWeight: 'bold',
+          },
+        }}
+      >
+        <Stack.Screen
+          name="index"
+          options={{
             title: 'ZentriqVision',
-            headerShown: false 
-          }} 
+            headerShown: true,
+          }}
         />
-        <Stack.Screen 
-          name="auth" 
-          options={{ 
+        <Stack.Screen
+          name="auth"
+          options={{
             title: 'Authentication',
-            headerShown: false 
-          }} 
+            headerShown: false,
+          }}
         />
-        <Stack.Screen 
-          name="upload" 
-          options={{ 
+        <Stack.Screen
+          name="upload"
+          options={{
             title: 'Upload Video',
-            headerShown: true 
-          }} 
+            headerShown: true,
+          }}
         />
-        <Stack.Screen 
-          name="search" 
-          options={{ 
-            title: 'Search',
-            headerShown: true 
-          }} 
+        <Stack.Screen
+          name="search"
+          options={{
+            title: 'Search Detections',
+            headerShown: true,
+          }}
         />
-        <Stack.Screen 
-          name="playback/[videoId]" 
-          options={{ 
+        <Stack.Screen
+          name="playback/[videoId]"
+          options={{
             title: 'Video Playback',
-            headerShown: true 
-          }} 
+            headerShown: true,
+          }}
         />
       </Stack>
-      <StatusBar style="auto" />
     </QueryClientProvider>
   );
 }
