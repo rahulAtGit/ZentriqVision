@@ -2,6 +2,11 @@ import * as cdk from "aws-cdk-lib";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
+import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as apigateway from "aws-cdk-lib/aws-apigateway";
+import * as iam from "aws-cdk-lib/aws-iam";
+import * as sns from "aws-cdk-lib/aws-sns";
+import * as s3n from "aws-cdk-lib/aws-s3-notifications";
 import { Construct } from "constructs";
 
 export class ZentriqVisionStack extends cdk.Stack {
@@ -128,9 +133,97 @@ export class ZentriqVisionStack extends cdk.Stack {
       sortKey: { name: "GSI3SK", type: dynamodb.AttributeType.STRING },
     });
 
-    // TODO: We'll add more resources here step by step
-    // 4. Lambda functions for APIs
-    // 5. API Gateway for REST APIs
-    // 6. SNS topics for notifications
+    // 4. SNS Topic for video processing events
+    const videoProcessingTopic = new sns.Topic(this, "VideoProcessingTopic", {
+      topicName: "zentriqvision-video-processing",
+    });
+
+    // 5. Lambda functions
+    // Upload Lambda function
+    const uploadLambda = new lambda.Function(this, "UploadLambda", {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: "index.handler",
+      code: lambda.Code.fromAsset("../backend/lambda/upload"),
+      environment: {
+        VIDEO_BUCKET: videoBucket.bucketName,
+        DATA_TABLE: dataTable.tableName,
+      },
+      timeout: cdk.Duration.minutes(5),
+      memorySize: 512,
+    });
+
+    // Search Lambda function
+    const searchLambda = new lambda.Function(this, "SearchLambda", {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: "index.handler",
+      code: lambda.Code.fromAsset("../backend/lambda/search"),
+      environment: {
+        DATA_TABLE: dataTable.tableName,
+      },
+      timeout: cdk.Duration.minutes(1),
+      memorySize: 512,
+    });
+
+    // Video Processing Lambda function (Python)
+    const processingLambda = new lambda.Function(this, "ProcessingLambda", {
+      runtime: lambda.Runtime.PYTHON_3_9,
+      handler: "index.handler",
+      code: lambda.Code.fromAsset("../backend/lambda/processing"),
+      environment: {
+        VIDEO_BUCKET: videoBucket.bucketName,
+        DATA_TABLE: dataTable.tableName,
+        SNS_TOPIC_ARN: videoProcessingTopic.topicArn,
+      },
+      timeout: cdk.Duration.minutes(15),
+      memorySize: 1024,
+    });
+
+    // 6. API Gateway
+    const api = new apigateway.RestApi(this, "ZentriqVisionApi", {
+      restApiName: "ZentriqVision API",
+      description: "API for ZentriqVision video surveillance app",
+      defaultCorsPreflightOptions: {
+        allowOrigins: apigateway.Cors.ALL_ORIGINS,
+        allowMethods: apigateway.Cors.ALL_METHODS,
+        allowHeaders: ["Content-Type", "Authorization"],
+      },
+    });
+
+    // API Resources and Methods
+    const uploadResource = api.root.addResource("upload");
+    const searchResource = api.root.addResource("search");
+    const videosResource = api.root.addResource("videos");
+
+    // Upload endpoint
+    uploadResource.addMethod(
+      "POST",
+      new apigateway.LambdaIntegration(uploadLambda)
+    );
+
+    // Search endpoint
+    searchResource.addMethod(
+      "GET",
+      new apigateway.LambdaIntegration(searchLambda)
+    );
+
+    // Video playback endpoint
+    videosResource
+      .addResource("{videoId}")
+      .addMethod("GET", new apigateway.LambdaIntegration(searchLambda));
+
+    // 7. Grant permissions
+    videoBucket.grantReadWrite(uploadLambda);
+    videoBucket.grantReadWrite(processingLambda);
+    dataTable.grantReadWriteData(uploadLambda);
+    dataTable.grantReadWriteData(processingLambda);
+    dataTable.grantReadData(searchLambda);
+    videoProcessingTopic.grantPublish(processingLambda);
+
+    // 8. S3 Event trigger for video processing
+    videoBucket.addEventNotification(
+      s3.EventType.OBJECT_CREATED,
+      new s3n.LambdaDestination(processingLambda),
+      { suffix: ".mp4" }
+    );
   }
 }
