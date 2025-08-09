@@ -1,8 +1,36 @@
+# Build outputs
 *.js
-!jest.config.js
+*.js.map
 *.d.ts
-node_modules
+*.d.ts.map
+dist/
+build/
 
-# CDK asset staging directory
+# Dependencies
+node_modules/
+
+# CDK outputs
 .cdk.staging
-cdk.out
+cdk.out/
+
+# Environment files
+.env
+.env.*
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Keep specific config files
+!jest.config.js
+!cdk.json
+!package.json
+!tsconfig.json
