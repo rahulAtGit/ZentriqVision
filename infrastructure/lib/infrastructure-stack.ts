@@ -15,17 +15,16 @@ export class ZentriqVisionStack extends cdk.Stack {
 
     // 1. S3 Bucket for video storage
     const videoBucket = new s3.Bucket(this, "ZentriqVisionVideoBucket", {
-      bucketName: `zentriqvision-videos-${this.account}-${this.region}`,
       versioned: true,
       encryption: s3.BucketEncryption.S3_MANAGED,
       lifecycleRules: [
         {
           id: "VideoRetention",
-          expiration: cdk.Duration.days(30),
+          expiration: cdk.Duration.days(60),
           transitions: [
             {
               storageClass: s3.StorageClass.INFREQUENT_ACCESS,
-              transitionAfter: cdk.Duration.days(7),
+              transitionAfter: cdk.Duration.days(30),
             },
           ],
         },
@@ -225,5 +224,42 @@ export class ZentriqVisionStack extends cdk.Stack {
       new s3n.LambdaDestination(processingLambda),
       { suffix: ".mp4" }
     );
+
+    // 9. Stack Outputs for mobile app configuration
+    new cdk.CfnOutput(this, "ApiGatewayUrl", {
+      value: api.url,
+      description: "API Gateway URL for mobile app",
+      exportName: "ZentriqVisionApiGatewayUrl",
+    });
+
+    new cdk.CfnOutput(this, "UserPoolId", {
+      value: userPool.userPoolId,
+      description: "Cognito User Pool ID for mobile app",
+      exportName: "ZentriqVisionUserPoolId",
+    });
+
+    new cdk.CfnOutput(this, "UserPoolClientId", {
+      value: userPoolClient.userPoolClientId,
+      description: "Cognito User Pool Client ID for mobile app",
+      exportName: "ZentriqVisionUserPoolClientId",
+    });
+
+    new cdk.CfnOutput(this, "VideoBucketName", {
+      value: videoBucket.bucketName,
+      description: "S3 Bucket name for video storage",
+      exportName: "ZentriqVisionVideoBucketName",
+    });
+
+    new cdk.CfnOutput(this, "DataTableName", {
+      value: dataTable.tableName,
+      description: "DynamoDB table name for data storage",
+      exportName: "ZentriqVisionDataTableName",
+    });
+
+    new cdk.CfnOutput(this, "Region", {
+      value: this.region,
+      description: "AWS region where resources are deployed",
+      exportName: "ZentriqVisionRegion",
+    });
   }
 }

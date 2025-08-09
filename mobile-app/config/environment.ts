@@ -1,72 +1,45 @@
+import { Platform } from 'react-native';
+
 // Environment configuration for ZentriqVision mobile app
-
-interface Environment {
-  apiUrl: string;
-  environment: "development" | "staging" | "production";
-  userPoolId: string;
-  userPoolClientId: string;
-  region: string;
-  videoBucket: string;
-}
-
-const getEnvironment = (): Environment => {
-  // In development, you can override this with environment variables
-  const apiUrl =
-    process.env.EXPO_PUBLIC_API_URL ||
-    "https://your-api-gateway-url.execute-api.us-east-1.amazonaws.com/prod";
-  const environment =
-    (process.env.EXPO_PUBLIC_ENVIRONMENT as
-      | "development"
-      | "staging"
-      | "production") || "development";
-  const userPoolId =
-    process.env.EXPO_PUBLIC_USER_POOL_ID || "us-east-1_your-user-pool-id";
-  const userPoolClientId =
-    process.env.EXPO_PUBLIC_USER_POOL_CLIENT_ID || "your-user-pool-client-id";
-  const region = process.env.EXPO_PUBLIC_AWS_REGION || "us-east-1";
-  const videoBucket =
-    process.env.EXPO_PUBLIC_VIDEO_BUCKET || "zentriqvision-videos";
-
-  return {
-    apiUrl,
-    environment,
-    userPoolId,
-    userPoolClientId,
-    region,
-    videoBucket,
-  };
-};
-
-export const env = getEnvironment();
-
-// Helper function to get API endpoint
-export const getApiEndpoint = (path: string): string => {
-  return `${env.apiUrl}${path}`;
+export const env = {
+  // API Configuration
+  apiUrl: 'https://8cnwe1mgf6.execute-api.us-east-1.amazonaws.com/prod',
+  
+  // AWS Cognito Configuration
+  userPoolId: 'us-east-1_PpVtV1Cq6',
+  userPoolClientId: 'nu93cus3nmpmvb0oi473pa7pq',
+  
+  // AWS Region
+  region: 'us-east-1',
+  
+  // S3 Bucket
+  videoBucket: 'zentriqvisionstack-zentriqvisionvideobucket68f2b96-b9xomlqxcw93',
 };
 
 // Environment-specific configurations
 export const config = {
   development: {
-    apiUrl:
-      "https://your-dev-api-gateway-url.execute-api.us-east-1.amazonaws.com/dev",
-    timeout: 10000,
-    userPoolId: "us-east-1_dev-user-pool-id",
-    userPoolClientId: "dev-user-pool-client-id",
+    ...env,
+    // Development-specific overrides
+    useMockApi: true, // Use mock API for development
   },
   staging: {
-    apiUrl:
-      "https://your-staging-api-gateway-url.execute-api.us-east-1.amazonaws.com/staging",
-    timeout: 15000,
-    userPoolId: "us-east-1_staging-user-pool-id",
-    userPoolClientId: "staging-user-pool-client-id",
+    ...env,
+    useMockApi: false,
   },
   production: {
-    apiUrl:
-      "https://your-production-api-gateway-url.execute-api.us-east-1.amazonaws.com/prod",
-    timeout: 20000,
-    userPoolId: "us-east-1_prod-user-pool-id",
-    userPoolClientId: "prod-user-pool-client-id",
+    ...env,
+    useMockApi: false,
   },
+};
+
+// Get current environment (default to development)
+export const getCurrentConfig = () => {
+  if (__DEV__) {
+    return config.development;
+  }
+  // In a real app, you'd check environment variables or build configs
+  return config.development;
 };
 
 export default env;

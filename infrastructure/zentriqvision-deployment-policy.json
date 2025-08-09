@@ -1,0 +1,24 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:*",
+        "iam:*",
+        "s3:*",
+        "lambda:*",
+        "apigateway:*",
+        "dynamodb:*",
+        "cognito-idp:*",
+        "sns:*",
+        "cloudwatch:*",
+        "logs:*",
+        "ec2:*",
+        "events:*",
+        "sts:GetCallerIdentity"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
