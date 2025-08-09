@@ -1,7 +1,9 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Alert, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Video, ResizeMode } from 'expo-av';
+import { useAuthStore } from '../../hooks/useAuthStore';
+import { useApi } from '../../hooks/useApi';
 import { Ionicons } from '@expo/vector-icons';
 import { PersonDetection } from '../../types';
 
@@ -10,43 +12,25 @@ const { width } = Dimensions.get('window');
 export default function PlaybackScreen() {
   const { videoId } = useLocalSearchParams();
   const router = useRouter();
+  const { user } = useAuthStore();
+  const { useVideoDetails, useVideoPlayback } = useApi();
+  
   const videoRef = useRef<Video>(null);
   const [status, setStatus] = useState({});
   const [isPlaying, setIsPlaying] = useState(false);
 
-  // Mock data for demonstration
-  const mockDetections: PersonDetection[] = [
-    {
-      personId: 'person1',
-      videoId: videoId as string,
-      timestamp: '2024-01-15T10:30:00Z',
-      confidence: 0.95,
-      attributes: {
-        ageBucket: '25-34',
-        gender: 'male',
-        emotion: 'neutral',
-        mask: false,
-        hairColor: 'black',
-        upperColor: 'blue',
-        lowerColor: 'black',
-      },
-    },
-    {
-      personId: 'person2',
-      videoId: videoId as string,
-      timestamp: '2024-01-15T10:32:00Z',
-      confidence: 0.88,
-      attributes: {
-        ageBucket: '18-24',
-        gender: 'female',
-        emotion: 'happy',
-        mask: false,
-        hairColor: 'brown',
-        upperColor: 'red',
-        lowerColor: 'blue',
-      },
-    },
-  ];
+  // Fetch video details and playback URL
+  const {
+    data: videoData,
+    isLoading: videoLoading,
+    error: videoError
+  } = useVideoDetails(videoId as string);
+
+  const {
+    data: playbackData,
+    isLoading: playbackLoading,
+    error: playbackError
+  } = useVideoPlayback(videoId as string);
 
   const handlePlayPause = async () => {
     if (videoRef.current) {
@@ -63,6 +47,34 @@ export default function PlaybackScreen() {
     return new Date(timestamp).toLocaleString();
   };
 
+  if (videoError || playbackError) {
+    return (
+      <View style={styles.errorContainer}>
+        <Ionicons name="alert-circle" size={48} color="#FF3B30" />
+        <Text style={styles.errorText}>Failed to load video</Text>
+        <Text style={styles.errorSubtext}>
+          {videoError?.message || playbackError?.message || 'Please try again later'}
+        </Text>
+        <TouchableOpacity style={styles.retryButton} onPress={() => router.back()}>
+          <Text style={styles.retryButtonText}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (videoLoading || playbackLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={styles.loadingText}>Loading video...</Text>
+      </View>
+    );
+  }
+
+  const videoDetails = videoData || {};
+  const playbackUrl = playbackData?.playbackUrl || 'https://d23dyxeqlo5psv.cloudfront.net/big_buck_bunny.mp4';
+  const detections = videoDetails.detections || [];
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.content}>
@@ -74,7 +86,7 @@ export default function PlaybackScreen() {
           <Video
             ref={videoRef}
             style={styles.video}
-            source={{ uri: 'https://d23dyxeqlo5psv.cloudfront.net/big_buck_bunny.mp4' }}
+            source={{ uri: playbackUrl }}
             useNativeControls
             resizeMode={ResizeMode.CONTAIN}
             isLooping
@@ -99,15 +111,27 @@ export default function PlaybackScreen() {
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
               <Ionicons name="time-outline" size={20} color="#8e8e93" />
-              <Text style={styles.infoText}>Duration: 2:30</Text>
+              <Text style={styles.infoText}>
+                Duration: {videoDetails.duration || 'Unknown'}
+              </Text>
             </View>
             <View style={styles.infoRow}>
               <Ionicons name="calendar-outline" size={20} color="#8e8e93" />
-              <Text style={styles.infoText}>Uploaded: {formatTimestamp('2024-01-15T10:00:00Z')}</Text>
+              <Text style={styles.infoText}>
+                Uploaded: {videoDetails.uploadedAt ? formatTimestamp(videoDetails.uploadedAt) : 'Unknown'}
+              </Text>
             </View>
             <View style={styles.infoRow}>
               <Ionicons name="people-outline" size={20} color="#8e8e93" />
-              <Text style={styles.infoText}>Detections: {mockDetections.length}</Text>
+              <Text style={styles.infoText}>
+                Detections: {detections.length}
+              </Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Ionicons name="information-circle-outline" size={20} color="#8e8e93" />
+              <Text style={styles.infoText}>
+                Status: {videoDetails.status || 'Unknown'}
+              </Text>
             </View>
           </View>
         </View>
@@ -115,52 +139,74 @@ export default function PlaybackScreen() {
         {/* Detections */}
         <View style={styles.detectionsSection}>
           <Text style={styles.sectionTitle}>Detections</Text>
-          {mockDetections.map((detection, index) => (
-            <View key={`${detection.personId}-${index}`} style={styles.detectionCard}>
-              <View style={styles.detectionHeader}>
-                <Ionicons name="person" size={24} color="#007AFF" />
-                <Text style={styles.detectionTitle}>Person {detection.personId}</Text>
-                <Text style={styles.detectionConfidence}>
-                  {(detection.confidence * 100).toFixed(0)}%
+          {detections.length > 0 ? (
+            detections.map((detection: PersonDetection, index: number) => (
+              <View key={`${detection.personId}-${index}`} style={styles.detectionCard}>
+                <View style={styles.detectionHeader}>
+                  <Ionicons name="person" size={24} color="#007AFF" />
+                  <Text style={styles.detectionTitle}>Person {detection.personId}</Text>
+                  <Text style={styles.detectionConfidence}>
+                    {(detection.confidence * 100).toFixed(0)}%
+                  </Text>
+                </View>
+                
+                <View style={styles.detectionDetails}>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Age:</Text>
+                    <Text style={styles.detailValue}>
+                      {detection.attributes.ageBucket || 'Unknown'}
+                    </Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Gender:</Text>
+                    <Text style={styles.detailValue}>
+                      {detection.attributes.gender || 'Unknown'}
+                    </Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Emotion:</Text>
+                    <Text style={styles.detailValue}>
+                      {detection.attributes.emotion || 'Unknown'}
+                    </Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Mask:</Text>
+                    <Text style={styles.detailValue}>
+                      {detection.attributes.mask ? 'Yes' : 'No'}
+                    </Text>
+                  </View>
+                  {detection.attributes.upperColor && (
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>Upper Color:</Text>
+                      <Text style={styles.detailValue}>
+                        {detection.attributes.upperColor}
+                      </Text>
+                    </View>
+                  )}
+                  {detection.attributes.lowerColor && (
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>Lower Color:</Text>
+                      <Text style={styles.detailValue}>
+                        {detection.attributes.lowerColor}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                
+                <Text style={styles.detectionTimestamp}>
+                  Detected: {formatTimestamp(detection.timestamp)}
                 </Text>
               </View>
-              
-              <View style={styles.detectionDetails}>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Age:</Text>
-                  <Text style={styles.detailValue}>{detection.attributes.ageBucket || 'Unknown'}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Gender:</Text>
-                  <Text style={styles.detailValue}>{detection.attributes.gender || 'Unknown'}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Emotion:</Text>
-                  <Text style={styles.detailValue}>{detection.attributes.emotion || 'Unknown'}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Mask:</Text>
-                  <Text style={styles.detailValue}>{detection.attributes.mask ? 'Yes' : 'No'}</Text>
-                </View>
-                {detection.attributes.upperColor && (
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Upper Color:</Text>
-                    <Text style={styles.detailValue}>{detection.attributes.upperColor}</Text>
-                  </View>
-                )}
-                {detection.attributes.lowerColor && (
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Lower Color:</Text>
-                    <Text style={styles.detailValue}>{detection.attributes.lowerColor}</Text>
-                  </View>
-                )}
-              </View>
-              
-              <Text style={styles.detectionTimestamp}>
-                Detected: {formatTimestamp(detection.timestamp)}
+            ))
+          ) : (
+            <View style={styles.noDetectionsContainer}>
+              <Ionicons name="people-outline" size={48} color="#8e8e93" />
+              <Text style={styles.noDetectionsText}>No detections found</Text>
+              <Text style={styles.noDetectionsSubtext}>
+                This video hasn't been processed yet or no people were detected
               </Text>
             </View>
-          ))}
+          )}
         </View>
       </View>
     </ScrollView>
@@ -291,5 +337,62 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#8e8e93',
     fontStyle: 'italic',
+  },
+  noDetectionsContainer: {
+    alignItems: 'center',
+    padding: 40,
+  },
+  noDetectionsText: {
+    fontSize: 18,
+    fontWeight: '500',
+    color: '#8e8e93',
+    marginTop: 15,
+    marginBottom: 5,
+  },
+  noDetectionsSubtext: {
+    fontSize: 14,
+    color: '#8e8e93',
+    textAlign: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#8e8e93',
+    marginTop: 15,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 18,
+    fontWeight: '500',
+    color: '#1c1c1e',
+    marginTop: 15,
+    marginBottom: 5,
+  },
+  errorSubtext: {
+    fontSize: 14,
+    color: '#8e8e93',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

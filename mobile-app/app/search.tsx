@@ -1,59 +1,41 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useAuthStore } from '../hooks/useAuthStore';
+import { useApi } from '../hooks/useApi';
 import { Ionicons } from '@expo/vector-icons';
 import { SearchFilters, PersonDetection } from '../types';
 
 export default function SearchScreen() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const { user } = useAuthStore();
+  const { useSearchDetections } = useApi();
+  
   const [filters, setFilters] = useState<SearchFilters>({});
-  const [results, setResults] = useState<PersonDetection[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const mockResults: PersonDetection[] = [
-    {
-      personId: 'person1',
-      videoId: 'video1',
-      timestamp: '2024-01-15T10:30:00Z',
-      confidence: 0.95,
-      attributes: {
-        ageBucket: '25-34',
-        gender: 'male',
-        emotion: 'neutral',
-        mask: false,
-        hairColor: 'black',
-        upperColor: 'blue',
-        lowerColor: 'black',
-      },
-    },
-    {
-      personId: 'person2',
-      videoId: 'video1',
-      timestamp: '2024-01-15T10:32:00Z',
-      confidence: 0.88,
-      attributes: {
-        ageBucket: '18-24',
-        gender: 'female',
-        emotion: 'happy',
-        mask: false,
-        hairColor: 'brown',
-        upperColor: 'red',
-        lowerColor: 'blue',
-      },
-    },
-  ];
+  // Use the API hook for search
+  const {
+    data: searchData,
+    isLoading,
+    error,
+    refetch
+  } = useSearchDetections(filters, 50);
+
+  const results = searchData?.results || [];
 
   const searchDetections = async () => {
-    setLoading(true);
+    if (!user) {
+      Alert.alert('Error', 'Please sign in to search');
+      return;
+    }
+
     try {
-      // TODO: Implement actual search API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setResults(mockResults);
+      await refetch();
     } catch (error) {
       console.error('Search failed:', error);
-    } finally {
-      setLoading(false);
+      Alert.alert('Error', 'Search failed. Please try again.');
     }
   };
 
@@ -66,12 +48,31 @@ export default function SearchScreen() {
 
   const clearFilters = () => {
     setFilters({});
-    setResults([]);
+    setSearchQuery('');
   };
 
   const navigateToPlayback = (videoId: string) => {
     router.push(`/playback/${videoId}`);
   };
+
+  // Auto-search when filters change
+  useEffect(() => {
+    if (Object.keys(filters).length > 0) {
+      searchDetections();
+    }
+  }, [filters]);
+
+  if (error) {
+    return (
+      <View style={styles.errorContainer}>
+        <Ionicons name="alert-circle" size={48} color="#FF3B30" />
+        <Text style={styles.errorText}>Failed to load search results</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={searchDetections}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container}>
@@ -85,6 +86,8 @@ export default function SearchScreen() {
             style={styles.searchInput}
             placeholder="Search for people, objects, colors..."
             placeholderTextColor="#8e8e93"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
           />
           <TouchableOpacity
             style={styles.filterButton}
@@ -178,9 +181,9 @@ export default function SearchScreen() {
         <TouchableOpacity
           style={styles.searchButton}
           onPress={searchDetections}
-          disabled={loading}
+          disabled={isLoading}
         >
-          {loading ? (
+          {isLoading ? (
             <ActivityIndicator color="white" />
           ) : (
             <>
@@ -197,7 +200,7 @@ export default function SearchScreen() {
               {results.length} detection{results.length !== 1 ? 's' : ''} found
             </Text>
             
-            {results.map((detection, index) => (
+            {results.map((detection: PersonDetection, index: number) => (
               <TouchableOpacity
                 key={`${detection.personId}-${index}`}
                 style={styles.resultCard}
@@ -233,6 +236,17 @@ export default function SearchScreen() {
                 </Text>
               </TouchableOpacity>
             ))}
+          </View>
+        )}
+
+        {/* No Results */}
+        {!isLoading && results.length === 0 && Object.keys(filters).length > 0 && (
+          <View style={styles.noResultsContainer}>
+            <Ionicons name="search-outline" size={48} color="#8e8e93" />
+            <Text style={styles.noResultsText}>No detections found</Text>
+            <Text style={styles.noResultsSubtext}>
+              Try adjusting your filters or search criteria
+            </Text>
           </View>
         )}
       </View>
@@ -408,5 +422,44 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#8e8e93',
     fontStyle: 'italic',
+  },
+  noResultsContainer: {
+    alignItems: 'center',
+    padding: 40,
+  },
+  noResultsText: {
+    fontSize: 18,
+    fontWeight: '500',
+    color: '#8e8e93',
+    marginTop: 15,
+    marginBottom: 5,
+  },
+  noResultsSubtext: {
+    fontSize: 14,
+    color: '#8e8e93',
+    textAlign: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#8e8e93',
+    marginTop: 15,
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

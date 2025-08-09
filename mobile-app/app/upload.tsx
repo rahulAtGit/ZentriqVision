@@ -3,16 +3,29 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, ActivityIn
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '../hooks/useAuthStore';
+import { useApi } from '../hooks/useApi';
+import { UploadManager, UploadProgress } from '../utils/upload';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function UploadScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const [uploading, setUploading] = useState(false);
+  const { useUploadVideo } = useApi();
+  const uploadVideoMutation = useUploadVideo();
+  
   const [selectedVideo, setSelectedVideo] = useState<any>(null);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const pickVideo = async () => {
     try {
+      // Request permissions
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Please grant permission to access your media library');
+        return;
+      }
+
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Videos,
         allowsEditing: true,
@@ -21,7 +34,16 @@ export default function UploadScreen() {
       });
 
       if (!result.canceled && result.assets[0]) {
-        setSelectedVideo(result.assets[0]);
+        const video = result.assets[0];
+        
+        // Validate video file
+        const validation = UploadManager.validateVideoFile(video.uri);
+        if (!validation.isValid) {
+          Alert.alert('Invalid File', validation.error || 'Please select a valid video file');
+          return;
+        }
+
+        setSelectedVideo(video);
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to pick video');
@@ -40,32 +62,59 @@ export default function UploadScreen() {
     }
 
     setUploading(true);
+    setUploadProgress(null);
 
     try {
-      // TODO: Implement actual upload to AWS S3
-      // For now, we'll simulate the upload process
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Step 1: Get presigned URL from our API
+      const uploadData = {
+        fileName: selectedVideo.fileName || `video_${Date.now()}.mp4`,
+        fileType: selectedVideo.type || 'video/mp4',
+      };
 
-      Alert.alert(
-        'Success',
-        'Video uploaded successfully! It will be processed shortly.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              setSelectedVideo(null);
-              router.back();
-            },
-          },
-        ]
+      const uploadResponse = await uploadVideoMutation.mutateAsync(uploadData);
+      
+      if (!uploadResponse.presignedUrl) {
+        throw new Error('Failed to get upload URL');
+      }
+
+      // Step 2: Upload to S3 using presigned URL
+      const uploadResult = await UploadManager.uploadVideoToS3(
+        selectedVideo.uri,
+        uploadResponse.presignedUrl,
+        (progress) => {
+          setUploadProgress(progress);
+        }
       );
+
+      if (uploadResult.success) {
+        Alert.alert(
+          'Success',
+          'Video uploaded successfully! It will be processed shortly.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setSelectedVideo(null);
+                setUploadProgress(null);
+                router.back();
+              },
+            },
+          ]
+        );
+      } else {
+        throw new Error(uploadResult.error || 'Upload failed');
+      }
     } catch (error) {
-      Alert.alert('Error', 'Failed to upload video');
+      console.error('Upload error:', error);
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to upload video');
     } finally {
       setUploading(false);
+      setUploadProgress(null);
     }
+  };
+
+  const formatProgress = (progress: UploadProgress) => {
+    return `${progress.percentage.toFixed(1)}%`;
   };
 
   return (
@@ -85,11 +134,12 @@ export default function UploadScreen() {
               <Ionicons name="videocam" size={48} color="#007AFF" />
               <Text style={styles.videoName}>{selectedVideo.fileName || 'Selected Video'}</Text>
               <Text style={styles.videoSize}>
-                {(selectedVideo.fileSize / (1024 * 1024)).toFixed(2)} MB
+                {UploadManager.formatFileSize(selectedVideo.fileSize || 0)}
               </Text>
               <TouchableOpacity
                 style={styles.changeButton}
                 onPress={pickVideo}
+                disabled={uploading}
               >
                 <Text style={styles.changeButtonText}>Change Video</Text>
               </TouchableOpacity>
@@ -99,11 +149,31 @@ export default function UploadScreen() {
               <Ionicons name="cloud-upload-outline" size={64} color="#8e8e93" />
               <Text style={styles.uploadText}>Tap to select video</Text>
               <Text style={styles.uploadSubtext}>
-                Supports MP4, MOV, AVI (max 5 minutes)
+                Supports MP4, MOV, AVI, MKV (max 5 minutes)
               </Text>
             </TouchableOpacity>
           )}
         </View>
+
+        {/* Upload Progress */}
+        {uploadProgress && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Upload Progress</Text>
+            <View style={styles.progressContainer}>
+              <View style={styles.progressBar}>
+                <View 
+                  style={[
+                    styles.progressFill, 
+                    { width: `${uploadProgress.percentage}%` }
+                  ]} 
+                />
+              </View>
+              <Text style={styles.progressText}>
+                {formatProgress(uploadProgress)} - {UploadManager.formatFileSize(uploadProgress.loaded)} / {UploadManager.formatFileSize(uploadProgress.total)}
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* Upload Settings */}
         <View style={styles.section}>
@@ -230,6 +300,36 @@ const styles = StyleSheet.create({
     color: '#007AFF',
     fontSize: 14,
     fontWeight: '500',
+  },
+  progressContainer: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  progressBar: {
+    height: 8,
+    backgroundColor: '#f2f2f7',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#007AFF',
+    borderRadius: 4,
+  },
+  progressText: {
+    fontSize: 14,
+    color: '#8e8e93',
+    textAlign: 'center',
   },
   settingItem: {
     flexDirection: 'row',
