@@ -1,6 +1,7 @@
 // API service for ZentriqVision mobile app
 
 import { env } from '../config/environment';
+import { mockApiService } from './mockApi';
 
 interface ApiResponse<T = any> {
   statusCode: number;
@@ -15,15 +16,24 @@ interface ApiError {
 
 class ApiService {
   private baseUrl: string;
+  private useMockApi: boolean;
 
   constructor(baseUrl: string = env.apiUrl) {
     this.baseUrl = baseUrl;
+    // Use mock API in development or when explicitly configured
+    this.useMockApi = env.environment === 'development' || process.env.EXPO_PUBLIC_USE_MOCK_API === 'true';
   }
 
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
+    // If using mock API, return mock data
+    if (this.useMockApi) {
+      console.log(`[MOCK API] ${options.method || 'GET'} ${endpoint}`);
+      return this.handleMockRequest<T>(endpoint, options);
+    }
+
     const url = `${this.baseUrl}${endpoint}`;
     
     const defaultHeaders = {
@@ -49,6 +59,51 @@ class ApiService {
       console.error('API request failed:', error);
       throw error;
     }
+  }
+
+  private async handleMockRequest<T>(endpoint: string, options: RequestInit): Promise<T> {
+    // Handle mock requests based on endpoint and method
+    switch (endpoint) {
+      case '/upload':
+        if (options.method === 'POST') {
+          const body = JSON.parse(options.body as string);
+          return mockApiService.uploadVideo(body) as T;
+        }
+        break;
+      
+      case '/search':
+        if (options.method === 'GET') {
+          const url = new URL(`${this.baseUrl}${endpoint}`);
+          const params = {
+            orgId: url.searchParams.get('orgId') || 'test-org',
+            filters: {
+              color: url.searchParams.get('color') || undefined,
+              emotion: url.searchParams.get('emotion') || undefined,
+              ageBucket: url.searchParams.get('ageBucket') || undefined,
+              mask: url.searchParams.get('mask') === 'true',
+            },
+            limit: parseInt(url.searchParams.get('limit') || '50'),
+          };
+          return mockApiService.searchDetections(params) as T;
+        }
+        break;
+      
+      default:
+        if (endpoint.startsWith('/videos/')) {
+          const videoId = endpoint.split('/')[2];
+          const url = new URL(`${this.baseUrl}${endpoint}`);
+          const orgId = url.searchParams.get('orgId') || 'test-org';
+          
+          if (endpoint.includes('/playback')) {
+            return mockApiService.getVideoPlaybackUrl(videoId, orgId) as T;
+          } else {
+            return mockApiService.getVideo(videoId, orgId) as T;
+          }
+        }
+        break;
+    }
+    
+    throw new Error(`Mock API: Endpoint ${endpoint} not implemented`);
   }
 
   // Video Upload

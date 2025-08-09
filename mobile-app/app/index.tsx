@@ -103,6 +103,23 @@ export default function IndexScreen() {
           </View>
         </View>
 
+        {/* Development Tools */}
+        {__DEV__ && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Development Tools</Text>
+            <TouchableOpacity
+              style={styles.devCard}
+              onPress={() => router.push("/test")}
+            >
+              <Ionicons name="flask" size={32} color="#FF9500" />
+              <Text style={styles.devCardTitle}>Test Suite</Text>
+              <Text style={styles.devCardSubtitle}>
+                Test authentication and API integration
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Recent Activity */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Recent Activity</Text>
@@ -253,6 +270,32 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   actionSubtitle: {
+    fontSize: 12,
+    color: "#8e8e93",
+    textAlign: "center",
+  },
+  devCard: {
+    backgroundColor: "white",
+    borderRadius: 12,
+    padding: 20,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  devCardTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1c1c1e",
+    marginTop: 10,
+    marginBottom: 5,
+  },
+  devCardSubtitle: {
     fontSize: 12,
     color: "#8e8e93",
     textAlign: "center",

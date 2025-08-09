@@ -73,6 +73,13 @@ export default function RootLayout() {
             headerShown: true,
           }}
         />
+        <Stack.Screen
+          name="test"
+          options={{
+            title: 'Test Suite',
+            headerShown: true,
+          }}
+        />
       </Stack>
     </QueryClientProvider>
   );
