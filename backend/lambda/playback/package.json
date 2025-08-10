@@ -1,0 +1,28 @@
+{
+  "name": "zentriqvision-playback-lambda",
+  "version": "1.0.0",
+  "description": "Video playback Lambda function for ZentriqVision",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@aws-sdk/s3-request-presigner": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.0",
+    "@types/node": "^18.0.0",
+    "typescript": "^4.9.0"
+  },
+  "keywords": [
+    "aws",
+    "lambda",
+    "video",
+    "playback",
+    "s3"
+  ],
+  "author": "ZentriqVision",
+  "license": "MIT"
+}

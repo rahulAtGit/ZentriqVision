@@ -146,6 +146,8 @@ export class ZentriqVisionStack extends cdk.Stack {
       environment: {
         VIDEO_BUCKET: videoBucket.bucketName,
         DATA_TABLE: dataTable.tableName,
+        USER_POOL_ID: userPool.userPoolId,
+        USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
       },
       timeout: cdk.Duration.minutes(5),
       memorySize: 512,
@@ -158,6 +160,36 @@ export class ZentriqVisionStack extends cdk.Stack {
       code: lambda.Code.fromAsset("../backend/lambda/search"),
       environment: {
         DATA_TABLE: dataTable.tableName,
+        USER_POOL_ID: userPool.userPoolId,
+        USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+      },
+      timeout: cdk.Duration.minutes(1),
+      memorySize: 512,
+    });
+
+    // Auth Lambda function
+    const authLambda = new lambda.Function(this, "AuthLambda", {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: "index.handler",
+      code: lambda.Code.fromAsset("../backend/lambda/auth"),
+      environment: {
+        USER_POOL_ID: userPool.userPoolId,
+        USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+      },
+      timeout: cdk.Duration.minutes(1),
+      memorySize: 512,
+    });
+
+    // Playback Lambda function
+    const playbackLambda = new lambda.Function(this, "PlaybackLambda", {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: "index.handler",
+      code: lambda.Code.fromAsset("../backend/lambda/playback"),
+      environment: {
+        VIDEO_BUCKET: videoBucket.bucketName,
+        DATA_TABLE: dataTable.tableName,
+        USER_POOL_ID: userPool.userPoolId,
+        USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
       },
       timeout: cdk.Duration.minutes(1),
       memorySize: 512,
@@ -189,9 +221,35 @@ export class ZentriqVisionStack extends cdk.Stack {
     });
 
     // API Resources and Methods
+    const authResource = api.root.addResource("auth");
     const uploadResource = api.root.addResource("upload");
     const searchResource = api.root.addResource("search");
     const videosResource = api.root.addResource("videos");
+
+    // Auth endpoints
+    authResource
+      .addResource("signup")
+      .addMethod("POST", new apigateway.LambdaIntegration(authLambda));
+
+    authResource
+      .addResource("signin")
+      .addMethod("POST", new apigateway.LambdaIntegration(authLambda));
+
+    authResource
+      .addResource("confirm")
+      .addMethod("POST", new apigateway.LambdaIntegration(authLambda));
+
+    authResource
+      .addResource("forgot-password")
+      .addMethod("POST", new apigateway.LambdaIntegration(authLambda));
+
+    authResource
+      .addResource("reset-password")
+      .addMethod("POST", new apigateway.LambdaIntegration(authLambda));
+
+    authResource
+      .addResource("validate")
+      .addMethod("POST", new apigateway.LambdaIntegration(authLambda));
 
     // Upload endpoint
     uploadResource.addMethod(
@@ -208,15 +266,20 @@ export class ZentriqVisionStack extends cdk.Stack {
     // Video playback endpoint
     videosResource
       .addResource("{videoId}")
-      .addMethod("GET", new apigateway.LambdaIntegration(searchLambda));
+      .addMethod("GET", new apigateway.LambdaIntegration(playbackLambda));
 
     // 7. Grant permissions
     videoBucket.grantReadWrite(uploadLambda);
     videoBucket.grantReadWrite(processingLambda);
+    videoBucket.grantRead(playbackLambda);
     dataTable.grantReadWriteData(uploadLambda);
     dataTable.grantReadWriteData(processingLambda);
     dataTable.grantReadData(searchLambda);
+    dataTable.grantReadData(playbackLambda);
     videoProcessingTopic.grantPublish(processingLambda);
+
+    // Grant Cognito permissions to auth Lambda
+    // Note: The auth Lambda will use the default execution role permissions
 
     // 8. S3 Event trigger for video processing
     videoBucket.addEventNotification(

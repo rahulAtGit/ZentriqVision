@@ -1,5 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { DynamoDBHelper } from "../../shared/utils/dynamodb";
+import { authHelper } from "../../shared/utils/auth";
 import {
   SearchRequest,
   SearchFilters,
@@ -13,10 +14,20 @@ export const handler = async (
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> => {
   try {
+    // Validate JWT token
+    const authResult = await authHelper.validateToken(
+      event.headers.Authorization
+    );
+    if (!authResult.isValid) {
+      return createErrorResponse(401, authResult.error || "Unauthorized");
+    }
+
     const { orgId, videoId } = event.pathParameters || {};
     const queryParams = event.queryStringParameters || {};
 
-    if (!orgId) {
+    // Use authenticated user's orgId if not provided in path
+    const authenticatedOrgId = orgId || authResult.user!.orgId || "default-org";
+    if (!authenticatedOrgId) {
       return createErrorResponse(400, "Missing orgId parameter");
     }
 
@@ -24,20 +35,23 @@ export const handler = async (
 
     if (videoId) {
       // Get specific video
-      const video = await dynamoHelper.get(`ORG#${orgId}`, `VIDEO#${videoId}`);
+      const video = await dynamoHelper.get(
+        `ORG#${authenticatedOrgId}`,
+        `VIDEO#${videoId}`
+      );
       if (video) {
         results = [video];
       }
     } else {
       // Search based on filters
       const filters = parseFilters(queryParams);
-      results = await performSearch(orgId, filters);
+      results = await performSearch(authenticatedOrgId, filters);
     }
 
     return createSuccessResponse({
       results,
       count: results.length,
-      orgId,
+      orgId: authenticatedOrgId,
       filters: queryParams,
     });
   } catch (error) {
