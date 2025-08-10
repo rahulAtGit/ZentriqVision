@@ -1,0 +1,1 @@
+{"httpMethod": "POST", "path": "/upload", "headers": {"Content-Type": "application/json", "Authorization": "Bearer test-token"}, "body": "{\"fileName\": \"test.mp4\", \"fileType\": \"video/mp4\", \"orgId\": \"test-org\"}", "requestContext": {"requestId": "test-request-id"}, "isBase64Encoded": false}

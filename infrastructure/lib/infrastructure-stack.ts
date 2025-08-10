@@ -141,7 +141,7 @@ export class ZentriqVisionStack extends cdk.Stack {
     // Upload Lambda function
     const uploadLambda = new lambda.Function(this, "UploadLambda", {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: "index.handler",
+      handler: "bundle.handler",
       code: lambda.Code.fromAsset("../backend/lambda/upload/dist"),
       environment: {
         VIDEO_BUCKET: videoBucket.bucketName,
@@ -156,7 +156,7 @@ export class ZentriqVisionStack extends cdk.Stack {
     // Search Lambda function
     const searchLambda = new lambda.Function(this, "SearchLambda", {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: "index.handler",
+      handler: "bundle.handler",
       code: lambda.Code.fromAsset("../backend/lambda/search/dist"),
       environment: {
         DATA_TABLE: dataTable.tableName,
@@ -170,7 +170,7 @@ export class ZentriqVisionStack extends cdk.Stack {
     // Auth Lambda function
     const authLambda = new lambda.Function(this, "AuthLambda", {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: "index.handler",
+      handler: "bundle.handler",
       code: lambda.Code.fromAsset("../backend/lambda/auth/dist"),
       environment: {
         USER_POOL_ID: userPool.userPoolId,
@@ -183,7 +183,7 @@ export class ZentriqVisionStack extends cdk.Stack {
     // Playback Lambda function
     const playbackLambda = new lambda.Function(this, "PlaybackLambda", {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: "index.handler",
+      handler: "bundle.handler",
       code: lambda.Code.fromAsset("../backend/lambda/playback/dist"),
       environment: {
         VIDEO_BUCKET: videoBucket.bucketName,
