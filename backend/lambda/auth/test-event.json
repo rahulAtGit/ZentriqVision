@@ -1,0 +1,13 @@
+{
+  "httpMethod": "POST",
+  "path": "/auth/signup",
+  "body": "{\"email\":\"test@example.com\",\"password\":\"TestPass123!\",\"givenName\":\"Test User\",\"phoneNumber\":\"+1234567890\"}",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "queryStringParameters": null,
+  "pathParameters": null,
+  "requestContext": {
+    "requestId": "test-request-id"
+  }
+}

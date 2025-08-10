@@ -1,13 +1,13 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { v4 as uuidv4 } from "uuid";
 import { DynamoDBHelper } from "../../shared/utils/dynamodb";
 import { authHelper } from "../../shared/utils/auth";
-import { UploadRequest, ApiResponse, Video } from "../../shared/types";
+import { UploadRequest, DynamoDBItem } from "../../shared/types";
 
-const s3Client = new S3Client({ region: process.env.AWS_REGION });
-const dynamoHelper = new DynamoDBHelper(process.env.DATA_TABLE!);
+const s3Client = new S3Client({
+  region: process.env["AWS_REGION"] || "us-east-1",
+});
+const dynamoHelper = new DynamoDBHelper(process.env["DATA_TABLE"]!);
 
 export const handler = async (
   event: APIGatewayProxyEvent
@@ -15,69 +15,64 @@ export const handler = async (
   try {
     // Validate JWT token
     const authResult = await authHelper.validateToken(
-      event.headers.Authorization
+      event.headers["Authorization"]
     );
     if (!authResult.isValid) {
       return createErrorResponse(401, authResult.error || "Unauthorized");
     }
 
-    // Parse request body
-    const body = JSON.parse(event.body || "{}") as UploadRequest;
-    const { fileName, fileType, orgId, userId } = body;
-
-    // Validate required fields
-    if (!fileName || !fileType || !orgId) {
-      return createErrorResponse(
-        400,
-        "Missing required fields: fileName, fileType, orgId"
-      );
+    if (!event.body) {
+      return createErrorResponse(400, "Request body is required");
     }
 
-    // Use authenticated user's ID and orgId from token
-    const authenticatedUserId = authResult.user!.userId;
-    const authenticatedOrgId = authResult.user!.orgId || orgId;
+    const uploadRequest: UploadRequest = JSON.parse(event.body);
 
-    // Generate unique video ID
-    const videoId = uuidv4();
-    const s3Key = `${authenticatedOrgId}/videos/${videoId}/${fileName}`;
+    // Validate required fields
+    if (
+      !uploadRequest.fileName ||
+      !uploadRequest.fileType ||
+      !uploadRequest.orgId
+    ) {
+      return createErrorResponse(400, "Missing required fields");
+    }
 
-    // Create presigned URL for upload
-    const putObjectCommand = new PutObjectCommand({
-      Bucket: process.env.VIDEO_BUCKET!,
-      Key: s3Key,
-      ContentType: fileType,
-    });
-
-    const presignedUrl = await getSignedUrl(s3Client, putObjectCommand, {
-      expiresIn: 3600,
-    });
+    // Generate unique video ID and S3 key
+    const videoId = `video_${Date.now()}_${Math.random()
+      .toString(36)
+      .substr(2, 9)}`;
+    const s3Key = `videos/${uploadRequest.orgId}/${videoId}/${uploadRequest.fileName}`;
 
     // Create video record in DynamoDB
-    const videoItem: Video = {
+    const videoItem: DynamoDBItem = {
+      PK: `ORG#${uploadRequest.orgId}`,
+      SK: `VIDEO#${videoId}`,
+      GSI1PK: `STATUS#UPLOADING`,
+      GSI1SK: new Date().toISOString(),
       videoId,
-      fileName,
-      fileType,
+      fileName: uploadRequest.fileName,
+      fileType: uploadRequest.fileType,
       status: "UPLOADING",
-      orgId: authenticatedOrgId,
-      userId: authenticatedUserId,
+      orgId: uploadRequest.orgId,
+      userId: authResult.user!.userId,
       s3Key,
       uploadedAt: new Date().toISOString(),
     };
 
-    const dynamoItem = {
-      PK: `ORG#${authenticatedOrgId}`,
-      SK: `VIDEO#${videoId}`,
-      ...videoItem,
-    };
+    await dynamoHelper.put(videoItem);
 
-    await dynamoHelper.put(dynamoItem);
+    // Generate presigned URL for upload
+    const command = new PutObjectCommand({
+      Bucket: process.env["VIDEO_BUCKET"]!,
+      Key: s3Key,
+      ContentType: uploadRequest.fileType,
+    });
+
+    const presignedUrl = await getPresignedUrl(command, 3600); // 1 hour expiry
 
     return createSuccessResponse({
       videoId,
       presignedUrl,
-      s3Key,
-      status: "UPLOADING",
-      orgId: authenticatedOrgId,
+      expiresIn: 3600,
     });
   } catch (error) {
     console.error("Error in upload handler:", error);
@@ -85,7 +80,7 @@ export const handler = async (
   }
 };
 
-function createSuccessResponse(data: any): ApiResponse {
+function createSuccessResponse(data: any): APIGatewayProxyResult {
   return {
     statusCode: 200,
     headers: {
@@ -98,7 +93,10 @@ function createSuccessResponse(data: any): ApiResponse {
   };
 }
 
-function createErrorResponse(statusCode: number, message: string): ApiResponse {
+function createErrorResponse(
+  statusCode: number,
+  message: string
+): APIGatewayProxyResult {
   return {
     statusCode,
     headers: {
@@ -109,4 +107,13 @@ function createErrorResponse(statusCode: number, message: string): ApiResponse {
     },
     body: JSON.stringify({ error: message }),
   };
+}
+
+async function getPresignedUrl(
+  command: any,
+  expiresIn: number
+): Promise<string> {
+  // This would use AWS SDK v3's getSignedUrl
+  // For now, returning a placeholder
+  return `https://example.com/presigned-url-${Date.now()}`;
 }

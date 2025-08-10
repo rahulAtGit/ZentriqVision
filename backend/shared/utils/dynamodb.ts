@@ -1,8 +1,8 @@
-import { DynamoDBClient, QueryCommand, PutItemCommand, UpdateItemCommand, GetItemCommand } from '@aws-sdk/client-dynamodb';
+import { DynamoDBClient, GetItemCommand, QueryCommand, PutItemCommand, UpdateItemCommand, DeleteItemCommand } from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import { DynamoDBItem } from '../types';
 
-const dynamoClient = new DynamoDBClient({ region: process.env.AWS_REGION });
+const dynamoClient = new DynamoDBClient({ region: process.env["AWS_REGION"] || "us-east-1" });
 
 export class DynamoDBHelper {
   private tableName: string;
@@ -12,39 +12,7 @@ export class DynamoDBHelper {
   }
 
   /**
-   * Query items by partition key and sort key condition
-   */
-  async query(
-    pk: string,
-    skCondition?: string,
-    skValue?: string,
-    indexName?: string
-  ): Promise<DynamoDBItem[]> {
-    const keyConditionExpression = skCondition 
-      ? 'PK = :pk AND begins_with(SK, :sk)'
-      : 'PK = :pk';
-
-    const expressionAttributeValues: any = {
-      ':pk': { S: pk }
-    };
-
-    if (skCondition && skValue) {
-      expressionAttributeValues[':sk'] = { S: skValue };
-    }
-
-    const command = new QueryCommand({
-      TableName: this.tableName,
-      IndexName: indexName,
-      KeyConditionExpression: keyConditionExpression,
-      ExpressionAttributeValues: expressionAttributeValues,
-    });
-
-    const response = await dynamoClient.send(command);
-    return response.Items?.map(item => unmarshall(item) as DynamoDBItem) || [];
-  }
-
-  /**
-   * Get a single item by primary key
+   * Get an item by primary key and sort key
    */
   async get(pk: string, sk: string): Promise<DynamoDBItem | null> {
     const command = new GetItemCommand({
@@ -60,7 +28,7 @@ export class DynamoDBHelper {
   }
 
   /**
-   * Put a new item
+   * Put an item into the table
    */
   async put(item: DynamoDBItem): Promise<void> {
     const command = new PutItemCommand({
@@ -72,7 +40,7 @@ export class DynamoDBHelper {
   }
 
   /**
-   * Update an existing item
+   * Update an item in the table
    */
   async update(
     pk: string,
@@ -96,35 +64,51 @@ export class DynamoDBHelper {
   }
 
   /**
-   * Query by GSI
+   * Delete an item from the table
    */
-  async queryGSI(
-    gsiName: string,
-    gsiPk: string,
-    gsiSkCondition?: string,
-    gsiSkValue?: string
-  ): Promise<DynamoDBItem[]> {
-    const keyConditionExpression = gsiSkCondition 
-      ? 'GSI1PK = :pk AND begins_with(GSI1SK, :sk)'
-      : 'GSI1PK = :pk';
+  async delete(pk: string, sk: string): Promise<void> {
+    const command = new DeleteItemCommand({
+      TableName: this.tableName,
+      Key: {
+        PK: { S: pk },
+        SK: { S: sk }
+      }
+    });
 
-    const expressionAttributeValues: any = {
-      ':pk': { S: gsiPk }
-    };
+    await dynamoClient.send(command);
+  }
 
-    if (gsiSkCondition && gsiSkValue) {
-      expressionAttributeValues[':sk'] = { S: gsiSkValue };
-    }
-
+  /**
+   * Query items using a GSI
+   */
+  async queryGSI(indexName: string, pk: string): Promise<DynamoDBItem[]> {
     const command = new QueryCommand({
       TableName: this.tableName,
-      IndexName: gsiName,
-      KeyConditionExpression: keyConditionExpression,
-      ExpressionAttributeValues: expressionAttributeValues,
+      IndexName: indexName,
+      KeyConditionExpression: "GSI1PK = :pk",
+      ExpressionAttributeValues: {
+        ":pk": { S: pk }
+      }
     });
 
     const response = await dynamoClient.send(command);
-    return response.Items?.map(item => unmarshall(item) as DynamoDBItem) || [];
+    return response.Items ? response.Items.map(item => unmarshall(item) as DynamoDBItem) : [];
+  }
+
+  /**
+   * Query items by primary key
+   */
+  async query(pk: string): Promise<DynamoDBItem[]> {
+    const command = new QueryCommand({
+      TableName: this.tableName,
+      KeyConditionExpression: "PK = :pk",
+      ExpressionAttributeValues: {
+        ":pk": { S: pk }
+      }
+    });
+
+    const response = await dynamoClient.send(command);
+    return response.Items ? response.Items.map(item => unmarshall(item) as DynamoDBItem) : [];
   }
 }
 

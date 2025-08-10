@@ -1,14 +1,9 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { DynamoDBHelper } from "../../shared/utils/dynamodb";
 import { authHelper } from "../../shared/utils/auth";
-import {
-  SearchRequest,
-  SearchFilters,
-  ApiResponse,
-  DynamoDBItem,
-} from "../../shared/types";
+import { SearchRequest, SearchFilters, DynamoDBItem } from "../../shared/types";
 
-const dynamoHelper = new DynamoDBHelper(process.env.DATA_TABLE!);
+const dynamoHelper = new DynamoDBHelper(process.env["DATA_TABLE"]!);
 
 export const handler = async (
   event: APIGatewayProxyEvent
@@ -16,7 +11,7 @@ export const handler = async (
   try {
     // Validate JWT token
     const authResult = await authHelper.validateToken(
-      event.headers.Authorization
+      event.headers["Authorization"]
     );
     if (!authResult.isValid) {
       return createErrorResponse(401, authResult.error || "Unauthorized");
@@ -99,21 +94,17 @@ async function performSearch(
     results = await dynamoHelper.queryGSI("TimeIndex", dateKey);
     results = results.filter((item) => item.PK === `ORG#${orgId}`);
   }
-  // Default: get all videos for the organization
+  // Default: search by organization
   else {
-    results = await dynamoHelper.query(`ORG#${orgId}`, "begins_with", "VIDEO#");
+    results = await dynamoHelper.query(`ORG#${orgId}`);
   }
 
-  // Apply additional filters
-  if (filters.personId) {
-    results = results.filter((item) => item.personId === filters.personId);
+  // Apply limit if specified
+  if (filters.limit && results.length > filters.limit) {
+    results = results.slice(0, filters.limit);
   }
 
-  if (filters.mask !== undefined) {
-    results = results.filter((item) => item.attributes?.mask === filters.mask);
-  }
-
-  return results.slice(0, filters.limit || 50);
+  return results;
 }
 
 function parseFilters(
@@ -124,22 +115,23 @@ function parseFilters(
   if (queryParams.color) filters.color = queryParams.color;
   if (queryParams.emotion) filters.emotion = queryParams.emotion;
   if (queryParams.ageBucket) filters.ageBucket = queryParams.ageBucket;
+  if (queryParams.mask !== undefined)
+    filters.mask = queryParams.mask === "true";
   if (queryParams.videoId) filters.videoId = queryParams.videoId;
   if (queryParams.personId) filters.personId = queryParams.personId;
-  if (queryParams.mask) filters.mask = queryParams.mask === "true";
   if (queryParams.limit) filters.limit = parseInt(queryParams.limit);
 
-  if (queryParams.startTime && queryParams.endTime) {
+  if (queryParams.start && queryParams.end) {
     filters.timeRange = {
-      start: queryParams.startTime,
-      end: queryParams.endTime,
+      start: queryParams.start,
+      end: queryParams.end,
     };
   }
 
   return filters;
 }
 
-function createSuccessResponse(data: any): ApiResponse {
+function createSuccessResponse(data: any): APIGatewayProxyResult {
   return {
     statusCode: 200,
     headers: {
@@ -152,7 +144,10 @@ function createSuccessResponse(data: any): ApiResponse {
   };
 }
 
-function createErrorResponse(statusCode: number, message: string): ApiResponse {
+function createErrorResponse(
+  statusCode: number,
+  message: string
+): APIGatewayProxyResult {
   return {
     statusCode,
     headers: {

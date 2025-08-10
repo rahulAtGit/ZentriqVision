@@ -13,13 +13,20 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "baseUrl": "../../",
-    "paths": {
-      "@shared/*": ["shared/*"]
-    }
+    "removeComments": true,
+    "noImplicitAny": true,
+    "noImplicitReturns": true,
+    "noImplicitThis": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": false,
+    "noUncheckedIndexedAccess": false
   },
   "include": [
-    "*.ts"
+    "*.ts",
+    "../../shared/**/*.ts"
   ],
   "exclude": [
     "node_modules",

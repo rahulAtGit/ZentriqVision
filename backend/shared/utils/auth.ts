@@ -20,9 +20,10 @@ class AuthHelper {
   private region: string;
 
   constructor() {
-    this.userPoolId = process.env.USER_POOL_ID!;
-    this.region = process.env.AWS_REGION!;
+    this.userPoolId = process.env["USER_POOL_ID"]!;
+    this.region = process.env["AWS_REGION"]!;
 
+    // Initialize JWKS client
     this.jwks = jwksClient({
       jwksUri: `https://cognito-idp.${this.region}.amazonaws.com/${this.userPoolId}/.well-known/jwks.json`,
       cache: true,
@@ -31,7 +32,7 @@ class AuthHelper {
   }
 
   /**
-   * Extract and validate JWT token from Authorization header
+   * Validate JWT token from Authorization header
    */
   async validateToken(authHeader: string | undefined): Promise<AuthResult> {
     try {
@@ -61,7 +62,7 @@ class AuthHelper {
     try {
       // Get the key ID from the token header
       const decodedHeader = JSON.parse(
-        Buffer.from(token.split(".")[0], "base64").toString()
+        Buffer.from(token.split(".")[0] || "", "base64").toString()
       );
       const kid = decodedHeader.kid;
 
@@ -81,9 +82,9 @@ class AuthHelper {
 
       // Extract user information
       const user: AuthenticatedUser = {
-        userId: decoded.sub!,
-        email: decoded.email!,
-        givenName: decoded.given_name || decoded.name || "",
+        userId: decoded["sub"]!,
+        email: decoded["email"]!,
+        givenName: decoded["given_name"] || decoded["name"] || "",
         orgId: decoded["cognito:groups"]?.[0] || "default-org",
       };
 
@@ -100,12 +101,12 @@ class AuthHelper {
   extractUserIdFromToken(token: string): string | null {
     try {
       const decodedHeader = JSON.parse(
-        Buffer.from(token.split(".")[0], "base64").toString()
+        Buffer.from(token.split(".")[0] || "", "base64").toString()
       );
       const decodedPayload = JSON.parse(
-        Buffer.from(token.split(".")[1], "base64").toString()
+        Buffer.from(token.split(".")[1] || "", "base64").toString()
       );
-      return decodedPayload.sub || null;
+      return decodedPayload["sub"] || null;
     } catch (error) {
       return null;
     }
@@ -117,9 +118,9 @@ class AuthHelper {
   isTokenExpired(token: string): boolean {
     try {
       const decodedPayload = JSON.parse(
-        Buffer.from(token.split(".")[1], "base64").toString()
+        Buffer.from(token.split(".")[1] || "", "base64").toString()
       );
-      const exp = decodedPayload.exp;
+      const exp = decodedPayload["exp"];
       if (!exp) return true;
 
       const currentTime = Math.floor(Date.now() / 1000);
@@ -132,6 +133,3 @@ class AuthHelper {
 
 // Create singleton instance
 export const authHelper = new AuthHelper();
-
-// Export types
-export type { AuthenticatedUser, AuthResult };

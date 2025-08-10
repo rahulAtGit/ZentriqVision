@@ -6,20 +6,21 @@ import {
   ConfirmSignUpCommand,
   ForgotPasswordCommand,
   ConfirmForgotPasswordCommand,
-  AdminGetUserCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 import { JwtPayload, verify } from "jsonwebtoken";
 import jwksClient from "jwks-rsa";
 
 const cognitoClient = new CognitoIdentityProviderClient({
-  region: process.env.AWS_REGION,
+  region: process.env["AWS_REGION"] || "us-east-1",
 });
-const userPoolId = process.env.USER_POOL_ID!;
-const userPoolClientId = process.env.USER_POOL_CLIENT_ID!;
+const userPoolId = process.env["USER_POOL_ID"]!;
+const userPoolClientId = process.env["USER_POOL_CLIENT_ID"]!;
 
 // JWT verification setup
 const jwks = jwksClient({
-  jwksUri: `https://cognito-idp.${process.env.AWS_REGION}.amazonaws.com/${userPoolId}/.well-known/jwks.json`,
+  jwksUri: `https://cognito-idp.${
+    process.env["AWS_REGION"] || "us-east-1"
+  }.amazonaws.com/${userPoolId}/.well-known/jwks.json`,
   cache: true,
   rateLimit: true,
 });
@@ -337,9 +338,9 @@ async function handleTokenValidation(
       return createSuccessResponse({
         message: "Token is valid",
         user: {
-          userId: decoded.sub,
-          email: decoded.email,
-          givenName: decoded.given_name,
+          userId: decoded["sub"],
+          email: decoded["email"],
+          givenName: decoded["given_name"],
         },
       });
     }
@@ -353,25 +354,29 @@ async function handleTokenValidation(
 
 async function verifyJWT(token: string): Promise<JwtPayload | null> {
   try {
-    // Get the key ID from the token header
+    // Decode the JWT header to get the key ID
     const decodedHeader = JSON.parse(
-      Buffer.from(token.split(".")[0], "base64").toString()
+      Buffer.from(token.split(".")[0] || "", "base64").toString()
     );
-    const kid = decodedHeader.kid;
 
-    // Get the public key
-    const key = await jwks.getSigningKey(kid);
-    const publicKey = key.getPublicKey();
+    const key = await jwks.getSigningKey(decodedHeader.kid);
+    const signingKey = key.getPublicKey();
 
-    // Verify the token
-    const decoded = verify(token, publicKey, {
-      algorithms: ["RS256"],
-      issuer: `https://cognito-idp.${process.env.AWS_REGION}.amazonaws.com/${userPoolId}`,
-    });
+    // Verify the JWT
+    const decoded = verify(token, signingKey, {
+      issuer: `https://cognito-idp.${
+        process.env["AWS_REGION"] || "us-east-1"
+      }.amazonaws.com/${userPoolId}`,
+      audience: userPoolClientId,
+    }) as JwtPayload;
 
-    return decoded as JwtPayload;
+    return {
+      ...decoded,
+      email: decoded["email"],
+      given_name: decoded["given_name"],
+    };
   } catch (error) {
-    console.error("JWT verification error:", error);
+    console.error("JWT verification failed:", error);
     return null;
   }
 }

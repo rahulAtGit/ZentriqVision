@@ -41,16 +41,33 @@ export interface Organization {
     status: 'ACTIVE' | 'INACTIVE';
     createdAt: string;
 }
-export interface ApiResponse<T = any> {
+export interface ApiResponse {
+    success: boolean;
+    data?: any;
+    error?: string;
+    message?: string;
+}
+export interface LambdaSuccessResponse {
     statusCode: number;
     headers: {
-        'Content-Type': string;
-        'Access-Control-Allow-Origin': string;
-        'Access-Control-Allow-Headers'?: string;
-        'Access-Control-Allow-Methods'?: string;
+        "Content-Type": string;
+        "Access-Control-Allow-Origin": string;
+        "Access-Control-Allow-Headers"?: string;
+        "Access-Control-Allow-Methods"?: string;
     };
     body: string;
 }
+export interface LambdaErrorResponse {
+    statusCode: number;
+    headers: {
+        "Content-Type": string;
+        "Access-Control-Allow-Origin": string;
+        "Access-Control-Allow-Headers"?: string;
+        "Access-Control-Allow-Methods"?: string;
+    };
+    body: string;
+}
+export type LambdaResponse = LambdaSuccessResponse | LambdaErrorResponse;
 export interface DynamoDBItem {
     PK: string;
     SK: string;
