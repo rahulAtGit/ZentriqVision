@@ -139,25 +139,39 @@ def generate_thumbnail(bucket: str, video_key: str, org_id: str, video_id: str, 
 
 def handler(event, context):
     """Main handler that routes events to appropriate functions"""
-    
+
     print(f"Processing event: {json.dumps(event)}")
-    
-    # Check event type and route accordingly
+
+    if not event or 'Records' not in event:
+        return {"statusCode": 400, "body": json.dumps("Invalid event: missing Records")}
+
+    processed_count = 0
+    errors: List[str] = []
+
+    # Route each record individually; do not return early
     for record in event['Records']:
-        if 'EventSource' in record and record['EventSource'] == 'aws:sns':
-            # This is an SNS event (Rekognition completion)
-            print("Routing to Rekognition results processing")
-            return process_rekognition_results(event, context)
-        elif 's3' in record:
-            # This is an S3 event (video upload)
-            print("Routing to S3 video processing")
-            return process_s3_video_upload(event, context)
-        else:
-            print(f"Unknown event type: {record}")
-    
+        try:
+            if record.get('EventSource') == 'aws:sns' or record.get('EventSource') == 'aws:sns':
+                print("Routing to Rekognition results processing (SNS)")
+                process_rekognition_results({"Records": [record]}, context)
+                processed_count += 1
+            elif 's3' in record:
+                print("Routing to S3 video processing")
+                process_s3_video_upload({"Records": [record]}, context)
+                processed_count += 1
+            else:
+                print(f"Unknown event type structure: {json.dumps(record)}")
+        except Exception as e:
+            print(f"Error processing record: {e}")
+            errors.append(str(e))
+
+    status_code = 200 if processed_count > 0 and not errors else 500 if errors and processed_count == 0 else 207
     return {
-        'statusCode': 400,
-        'body': json.dumps('Unknown event type')
+        "statusCode": status_code,
+        "body": json.dumps({
+            "processedRecords": processed_count,
+            "errors": errors,
+        }),
     }
 
 def process_s3_video_upload(event, context):
@@ -257,18 +271,33 @@ def process_rekognition_results(event, context):
     print(f"Processing Rekognition results: {json.dumps(event)}")
     
     # Parse SNS message
+    if not event or 'Records' not in event:
+        print("SNS handler invoked without Records")
+        return {"statusCode": 400, "body": json.dumps("Invalid SNS event")}
+
     for record in event['Records']:
-        sns_message = json.loads(record['Sns']['Message'])
-        job_id = sns_message['JobId']
-        status = sns_message['Status']
+        try:
+            sns_payload = record.get('Sns', {})
+            message_str = sns_payload.get('Message', '{}')
+            sns_message = json.loads(message_str)
+        except Exception as e:
+            print(f"Error parsing SNS message: {e}")
+            continue
+
+        job_id = sns_message.get('JobId')
+        status = sns_message.get('Status')
+        if not job_id or not status:
+            print(f"SNS message missing required fields: {sns_message}")
+            continue
         
         # Extract org_id and video_id from job tag
         job_tag = sns_message.get('JobTag', '')
-        if '_' in job_tag:
-            org_id, video_id = job_tag.split('_', 1)
-        else:
+        if '_' not in job_tag:
             print(f"Invalid job tag: {job_tag}")
             continue
+        org_id, video_id_with_ext = job_tag.split('_', 1)
+        # Normalize video_id (strip extension if present)
+        video_id = video_id_with_ext.rsplit('.', 1)[0]
         
         table = dynamodb.Table(os.environ['DATA_TABLE'])
         
@@ -278,7 +307,7 @@ def process_rekognition_results(event, context):
                 response = rekognition.get_face_detection(JobId=job_id)
                 
                 # Process and store results
-                process_face_detections(org_id, video_id, response['Faces'])
+                process_face_detections(org_id, video_id, response.get('Faces', []))
                 
                 # Get video info from DynamoDB to get bucket and key
                 video_item = table.get_item(
@@ -294,11 +323,12 @@ def process_rekognition_results(event, context):
                     video_key = video_info.get('videoKey', f"{org_id}/videos/{video_id}.mp4")
                     
                     # Calculate first face timestamp
-                    first_face_timestamp = min(face['Timestamp'] for face in response['Faces']) if response['Faces'] else 0
+                    faces_list = response.get('Faces', [])
+                    first_face_timestamp = min(face.get('Timestamp', 0) for face in faces_list) if faces_list else 0
                     
                     # Generate thumbnail from first frame with faces
                     print(f"Generating thumbnail for video {video_id}")
-                    thumbnail_key = generate_thumbnail(bucket, video_key, org_id, video_id, response['Faces'])
+                    thumbnail_key = generate_thumbnail(bucket, video_key, org_id, video_id, faces_list)
                     
                     # Update video status to PROCESSED with thumbnail info
                     update_expression = "SET #status = :status, processingCompletedAt = :timestamp"
@@ -390,8 +420,8 @@ def process_face_detections(org_id: str, video_id: str, faces: List[Dict[str, An
         timestamp = face['Timestamp']
         
         # Extract attributes
-        attributes = face.get('Face', {})
-        face_details = attributes.get('FaceDetails', [{}])[0]
+        attributes = face.get('Face', {})  # Rekognition returns details directly under 'Face'
+        face_details = attributes  # Normalize variable name for downstream field access
         
         # Create person detection record
         detection_item = {
