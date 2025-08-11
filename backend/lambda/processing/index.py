@@ -4,6 +4,7 @@ import os
 from datetime import datetime, timedelta
 import uuid
 from typing import Dict, Any, List
+from decimal import Decimal
 
 # Initialize AWS clients
 rekognition = boto3.client('rekognition')
@@ -342,7 +343,7 @@ def process_rekognition_results(event, context):
                         expression_values[':thumbnailUrl'] = f"s3://{bucket}/{thumbnail_key}"
                         expression_values[':thumbnailMeta'] = {
                             'frameTimestamp': int(first_face_timestamp / 1000),
-                            'faceCount': len(response['Faces']),
+                            'faceCount': len(response.get('Faces', [])),
                             'generatedAt': datetime.utcnow().isoformat(),
                             'status': 'metadata_ready'  # Will be 'ready' when actual image is generated
                         }
@@ -423,14 +424,14 @@ def process_face_detections(org_id: str, video_id: str, faces: List[Dict[str, An
         attributes = face.get('Face', {})  # Rekognition returns details directly under 'Face'
         face_details = attributes  # Normalize variable name for downstream field access
         
-        # Create person detection record
+        # Create person detection record with Decimal types for DynamoDB
         detection_item = {
             'PK': f"ORG#{org_id}",
             'SK': f"APPEAR#{video_id}#{timestamp}",
             'personId': person_id,
             'videoId': video_id,
             'timestamp': datetime.fromtimestamp(timestamp/1000).isoformat(),
-            'confidence': attributes.get('Confidence', 0),
+            'confidence': float_to_decimal(attributes.get('Confidence', 0)),
             'attributes': {
                 'ageBucket': get_age_bucket(face_details.get('AgeRange', {})),
                 'gender': face_details.get('Gender', {}).get('Value', 'unknown'),
@@ -469,6 +470,17 @@ def get_age_bucket(age_range: Dict[str, int]) -> str:
         return '35-49'
     else:
         return '50+'
+
+def float_to_decimal(value):
+    """Convert float to Decimal for DynamoDB compatibility"""
+    if isinstance(value, float):
+        return Decimal(str(value))
+    elif isinstance(value, dict):
+        return {k: float_to_decimal(v) for k, v in value.items()}
+    elif isinstance(value, list):
+        return [float_to_decimal(item) for item in value]
+    else:
+        return value
 
 def get_primary_emotion(emotions: List[Dict[str, Any]]) -> str:
     """Get the primary emotion from the list"""
