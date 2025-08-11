@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 import uuid
 from typing import Dict, Any, List
 
-
 # Initialize AWS clients
 rekognition = boto3.client('rekognition')
 s3 = boto3.client('s3')
@@ -13,7 +12,7 @@ dynamodb = boto3.resource('dynamodb')
 sns = boto3.client('sns')
 
 def generate_thumbnail(bucket: str, video_key: str, org_id: str, video_id: str, faces_data: List[Dict[str, Any]]) -> str:
-    """Generate thumbnail from first frame with faces and upload to S3"""
+    """Generate thumbnail from first frame with faces using AWS MediaConvert"""
     
     if not faces_data:
         print(f"No faces detected in video {video_id}, skipping thumbnail generation")
@@ -29,18 +28,90 @@ def generate_thumbnail(bucket: str, video_key: str, org_id: str, video_id: str, 
         # Create thumbnail key structure
         thumbnail_key = f"{org_id}/thumbnails/{video_id}.jpg"
         
-        # For now, we'll create a placeholder approach
-        # TODO: Implement actual frame extraction using one of these methods:
-        # 1. AWS MediaConvert for frame extraction
-        # 2. FFmpeg Lambda Layer (when we get it working)
-        # 3. Use Rekognition's frame data if available
-        
-        # Store thumbnail metadata in DynamoDB for now
-        # The actual thumbnail image will be generated in a future iteration
-        print(f"Thumbnail metadata prepared: {thumbnail_key}")
-        print(f"Frame timestamp: {frame_number}s, Face count: {len(faces_data)}")
-        
-        return thumbnail_key
+        # Use AWS MediaConvert to extract frame
+        try:
+            # Use MediaConvert endpoint from environment variable
+            mediaconvert_endpoint = os.environ.get('MEDIACONVERT_ENDPOINT', 'https://mediaconvert.us-east-1.amazonaws.com')
+            
+            # Create MediaConvert client with endpoint
+            mediaconvert_client = boto3.client('mediaconvert', endpoint_url=mediaconvert_endpoint)
+            
+            # Create job for frame extraction (simplified approach)
+            job_settings = {
+                'TimecodeConfig': {
+                    'Source': 'ZEROBASED'
+                },
+                'Inputs': [{
+                    'FileInput': f"s3://{bucket}/{video_key}"
+                }],
+                'OutputGroups': [{
+                    'Name': 'File Group',
+                    'OutputGroupSettings': {
+                        'FileGroupSettings': {
+                            'Destination': f"s3://{bucket}/{org_id}/thumbnails/"
+                        }
+                    },
+                    'Outputs': [{
+                        'NameModifier': f"_{video_id}_frame",
+                        'OutputSettings': {
+                            'FileSettings': {
+                                'NameModifier': f"_{video_id}_frame"
+                            }
+                        },
+                        'VideoDescription': {
+                            'Width': 320,
+                            'Height': 240,
+                            'ScalingBehavior': 'DEFAULT',
+                            'CodecSettings': {
+                                'Codec': 'FRAME_CAPTURE',
+                                'FrameCaptureSettings': {
+                                    'MaxCaptures': 1,
+                                    'Quality': 80,
+                                    'FramerateNumerator': 1,
+                                    'FramerateDenominator': 1
+                                }
+                            }
+                        }
+                    }]
+                }]
+            }
+            
+            # Submit MediaConvert job
+            response = mediaconvert_client.create_job(
+                Role='arn:aws:iam::804857032172:role/aws-mediaconvert-default',  # Use default MediaConvert role
+                Settings=job_settings,
+                UserMetadata={
+                    'videoId': video_id,
+                    'orgId': org_id,
+                    'frameTimestamp': str(frame_number)
+                }
+            )
+            
+            job_id = response['Job']['Id']
+            print(f"MediaConvert job {job_id} submitted for frame extraction")
+            
+            # Store job ID in DynamoDB for tracking
+            table = dynamodb.Table(os.environ['DATA_TABLE'])
+            table.update_item(
+                Key={
+                    'PK': f"ORG#{org_id}",
+                    'SK': f"VIDEO#{video_id}"
+                },
+                UpdateExpression="SET mediaConvertJobId = :jobId, thumbnailStatus = :status",
+                ExpressionAttributeValues={
+                    ':jobId': job_id,
+                    ':status': 'processing'
+                }
+            )
+            
+            # For now, return the expected thumbnail key
+            # The actual thumbnail will be generated asynchronously by MediaConvert
+            return thumbnail_key
+            
+        except Exception as e:
+            print(f"MediaConvert error: {e}")
+            # Fallback: return placeholder for now
+            return thumbnail_key
                 
     except Exception as e:
         print(f"Error in thumbnail generation: {e}")

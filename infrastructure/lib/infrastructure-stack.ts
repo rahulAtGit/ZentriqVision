@@ -204,6 +204,7 @@ export class ZentriqVisionStack extends cdk.Stack {
         VIDEO_BUCKET: videoBucket.bucketName,
         DATA_TABLE: dataTable.tableName,
         SNS_TOPIC_ARN: videoProcessingTopic.topicArn,
+        MEDIACONVERT_ENDPOINT: "https://mediaconvert.us-east-1.amazonaws.com",
       },
       timeout: cdk.Duration.minutes(15),
       memorySize: 1024,
@@ -277,6 +278,19 @@ export class ZentriqVisionStack extends cdk.Stack {
     dataTable.grantReadData(searchLambda);
     dataTable.grantReadData(playbackLambda);
     videoProcessingTopic.grantPublish(processingLambda);
+
+    // Grant MediaConvert permissions to Processing Lambda
+    processingLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "mediaconvert:CreateJob",
+          "mediaconvert:GetJob",
+          "mediaconvert:DescribeEndpoints",
+        ],
+        resources: ["*"],
+      })
+    );
 
     // Grant Cognito permissions to auth Lambda
     // Note: The auth Lambda will use the default execution role permissions
