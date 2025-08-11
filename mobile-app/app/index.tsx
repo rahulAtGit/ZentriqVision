@@ -92,6 +92,15 @@ export default function IndexScreen() {
 
             <TouchableOpacity
               style={styles.actionCard}
+              onPress={() => router.push("/library")}
+            >
+              <Ionicons name="library" size={32} color="#007AFF" />
+              <Text style={styles.actionTitle}>Video Library</Text>
+              <Text style={styles.actionSubtitle}>Browse your videos</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionCard}
               onPress={() => router.push("/search")}
             >
               <Ionicons name="search" size={32} color="#007AFF" />
@@ -99,6 +108,15 @@ export default function IndexScreen() {
               <Text style={styles.actionSubtitle}>
                 Search for people and objects
               </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={() => router.push("/profile")}
+            >
+              <Ionicons name="person-circle" size={32} color="#007AFF" />
+              <Text style={styles.actionTitle}>Profile</Text>
+              <Text style={styles.actionSubtitle}>Manage your account</Text>
             </TouchableOpacity>
           </View>
         </View>

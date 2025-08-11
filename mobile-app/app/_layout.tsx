@@ -60,6 +60,20 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="library"
+          options={{
+            title: 'Video Library',
+            headerShown: true,
+          }}
+        />
+        <Stack.Screen
+          name="profile"
+          options={{
+            title: 'Profile',
+            headerShown: true,
+          }}
+        />
+        <Stack.Screen
           name="search"
           options={{
             title: 'Search Detections',
