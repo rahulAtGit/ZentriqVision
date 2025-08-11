@@ -1,5 +1,11 @@
-import { create } from 'zustand';
-import { authService, AuthUser, SignUpData, SignInData, AuthError } from '../services/auth';
+import { create } from "zustand";
+import {
+  authService,
+  AuthUser,
+  SignUpData,
+  SignInData,
+  AuthError,
+} from "../services/auth";
 
 interface AuthState {
   user: AuthUser | null;
@@ -14,6 +20,13 @@ interface AuthActions {
   signUp: (data: SignUpData) => Promise<void>;
   confirmSignUp: (email: string, code: string) => Promise<void>;
   signOut: () => Promise<void>;
+  forgotPassword: (email: string) => Promise<void>;
+  confirmForgotPassword: (
+    email: string,
+    code: string,
+    newPassword: string
+  ) => Promise<void>;
+  resendConfirmationCode: (email: string) => Promise<void>;
   clearError: () => void;
   setUser: (user: AuthUser | null) => void;
   setLoading: (loading: boolean) => void;
@@ -41,12 +54,15 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         set({ user: null, isAuthenticated: false, isLoading: false });
       }
     } catch (error) {
-      console.error('Initialize auth error:', error);
-      set({ 
-        user: null, 
-        isAuthenticated: false, 
-        isLoading: false, 
-        error: error instanceof Error ? error.message : 'Failed to initialize authentication' 
+      console.error("Initialize auth error:", error);
+      set({
+        user: null,
+        isAuthenticated: false,
+        isLoading: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to initialize authentication",
       });
     }
   },
@@ -58,11 +74,11 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       const user = await authService.getCurrentUser();
       set({ user, isAuthenticated: !!user, isLoading: false });
     } catch (error) {
-      console.error('Sign in error:', error);
+      console.error("Sign in error:", error);
       const authError = error as AuthError;
-      set({ 
-        isLoading: false, 
-        error: authError.message || 'Failed to sign in' 
+      set({
+        isLoading: false,
+        error: authError.message || "Failed to sign in",
       });
     }
   },
@@ -73,11 +89,11 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       await authService.signUp(data);
       set({ isLoading: false });
     } catch (error) {
-      console.error('Sign up error:', error);
+      console.error("Sign up error:", error);
       const authError = error as AuthError;
-      set({ 
-        isLoading: false, 
-        error: authError.message || 'Failed to sign up' 
+      set({
+        isLoading: false,
+        error: authError.message || "Failed to sign up",
       });
     }
   },
@@ -88,11 +104,11 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       await authService.confirmSignUp(email, code);
       set({ isLoading: false });
     } catch (error) {
-      console.error('Confirm sign up error:', error);
+      console.error("Confirm sign up error:", error);
       const authError = error as AuthError;
-      set({ 
-        isLoading: false, 
-        error: authError.message || 'Failed to confirm sign up' 
+      set({
+        isLoading: false,
+        error: authError.message || "Failed to confirm sign up",
       });
     }
   },
@@ -103,28 +119,65 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       await authService.signOut();
       set({ user: null, isAuthenticated: false, isLoading: false });
     } catch (error) {
-      console.error('Sign out error:', error);
-      const authError = error as AuthError;
-      set({ 
-        isLoading: false, 
-        error: authError.message || 'Failed to sign out' 
+      console.error("Sign out error:", error);
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : "Failed to sign out",
       });
     }
   },
 
-  clearError: () => {
-    set({ error: null });
+  forgotPassword: async (email: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      await authService.forgotPassword(email);
+      set({ isLoading: false });
+    } catch (error) {
+      console.error("Forgot password error:", error);
+      const authError = error as AuthError;
+      set({
+        isLoading: false,
+        error: authError.message || "Failed to send reset code",
+      });
+    }
   },
 
-  setUser: (user: AuthUser | null) => {
-    set({ user, isAuthenticated: !!user });
+  confirmForgotPassword: async (
+    email: string,
+    code: string,
+    newPassword: string
+  ) => {
+    set({ isLoading: true, error: null });
+    try {
+      await authService.confirmForgotPassword(email, code, newPassword);
+      set({ isLoading: false });
+    } catch (error) {
+      console.error("Confirm forgot password error:", error);
+      const authError = error as AuthError;
+      set({
+        isLoading: false,
+        error: authError.message || "Failed to reset password",
+      });
+    }
   },
 
-  setLoading: (loading: boolean) => {
-    set({ isLoading: loading });
+  resendConfirmationCode: async (email: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      await authService.resendConfirmationCode(email);
+      set({ isLoading: false });
+    } catch (error) {
+      console.error("Resend confirmation code error:", error);
+      const authError = error as AuthError;
+      set({
+        isLoading: false,
+        error: authError.message || "Failed to resend code",
+      });
+    }
   },
 
-  setError: (error: string | null) => {
-    set({ error });
-  },
+  clearError: () => set({ error: null }),
+  setUser: (user: AuthUser | null) => set({ user, isAuthenticated: !!user }),
+  setLoading: (loading: boolean) => set({ isLoading: loading }),
+  setError: (error: string | null) => set({ error }),
 }));

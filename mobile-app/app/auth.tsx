@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -8,33 +8,47 @@ import {
   Alert,
   ScrollView,
   ActivityIndicator,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { useAuthStore } from '../hooks/useAuthStore';
-import { Ionicons } from '@expo/vector-icons';
+} from "react-native";
+import { useRouter } from "expo-router";
+import { useAuthStore } from "../hooks/useAuthStore";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function AuthScreen() {
   const router = useRouter();
-  const { signIn, signUp, confirmSignUp, isLoading, error, clearError } = useAuthStore();
-  
+  const {
+    signIn,
+    signUp,
+    confirmSignUp,
+    forgotPassword,
+    confirmForgotPassword,
+    resendConfirmationCode,
+    isLoading,
+    error,
+    clearError,
+  } = useAuthStore();
+
   const [isSignUp, setIsSignUp] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [givenName, setGivenName] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [confirmationCode, setConfirmationCode] = useState('');
-  const [pendingEmail, setPendingEmail] = useState('');
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [isConfirmingForgotPassword, setIsConfirmingForgotPassword] =
+    useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [givenName, setGivenName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [confirmationCode, setConfirmationCode] = useState("");
+  const [pendingEmail, setPendingEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
 
   const handleSignIn = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all required fields');
+      Alert.alert("Error", "Please fill in all required fields");
       return;
     }
 
     try {
       await signIn({ email, password });
-      router.replace('/');
+      router.replace("/");
     } catch (error) {
       // Error is handled by the store
     }
@@ -42,12 +56,12 @@ export default function AuthScreen() {
 
   const handleSignUp = async () => {
     if (!email || !password || !givenName) {
-      Alert.alert('Error', 'Please fill in all required fields');
+      Alert.alert("Error", "Please fill in all required fields");
       return;
     }
 
     if (password.length < 8) {
-      Alert.alert('Error', 'Password must be at least 8 characters long');
+      Alert.alert("Error", "Password must be at least 8 characters long");
       return;
     }
 
@@ -56,9 +70,9 @@ export default function AuthScreen() {
       setPendingEmail(email);
       setIsConfirming(true);
       Alert.alert(
-        'Success',
-        'Account created! Please check your email for a confirmation code.',
-        [{ text: 'OK' }]
+        "Success",
+        "Account created! Please check your email for a confirmation code.",
+        [{ text: "OK" }]
       );
     } catch (error) {
       // Error is handled by the store
@@ -67,23 +81,70 @@ export default function AuthScreen() {
 
   const handleConfirmSignUp = async () => {
     if (!confirmationCode) {
-      Alert.alert('Error', 'Please enter the confirmation code');
+      Alert.alert("Error", "Please enter the confirmation code");
       return;
     }
 
     try {
       await confirmSignUp(pendingEmail, confirmationCode);
+      Alert.alert("Success", "Account confirmed! You can now sign in.", [
+        {
+          text: "OK",
+          onPress: () => {
+            setIsConfirming(false);
+            setIsSignUp(false);
+            clearForm();
+          },
+        },
+      ]);
+    } catch (error) {
+      // Error is handled by the store
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      Alert.alert("Error", "Please enter your email address");
+      return;
+    }
+
+    try {
+      await forgotPassword(email);
+      setPendingEmail(email);
+      setIsConfirmingForgotPassword(true);
       Alert.alert(
-        'Success',
-        'Account confirmed! You can now sign in.',
+        "Success",
+        "Password reset code sent! Please check your email.",
+        [{ text: "OK" }]
+      );
+    } catch (error) {
+      // Error is handled by the store
+    }
+  };
+
+  const handleConfirmForgotPassword = async () => {
+    if (!confirmationCode || !newPassword) {
+      Alert.alert("Error", "Please fill in all required fields");
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      Alert.alert("Error", "New password must be at least 8 characters long");
+      return;
+    }
+
+    try {
+      await confirmForgotPassword(pendingEmail, confirmationCode, newPassword);
+      Alert.alert(
+        "Success",
+        "Password reset successfully! You can now sign in with your new password.",
         [
           {
-            text: 'OK',
+            text: "OK",
             onPress: () => {
-              setIsConfirming(false);
-              setIsSignUp(false);
-              setConfirmationCode('');
-              setPendingEmail('');
+              setIsConfirmingForgotPassword(false);
+              setIsForgotPassword(false);
+              clearForm();
             },
           },
         ]
@@ -95,27 +156,114 @@ export default function AuthScreen() {
 
   const handleResendCode = async () => {
     try {
-      // TODO: Implement resend confirmation code
-      Alert.alert('Success', 'Confirmation code resent to your email');
+      await resendConfirmationCode(pendingEmail);
+      Alert.alert("Success", "Confirmation code resent to your email");
     } catch (error) {
-      Alert.alert('Error', 'Failed to resend confirmation code');
+      // Error is handled by the store
     }
   };
 
   const clearForm = () => {
-    setEmail('');
-    setPassword('');
-    setGivenName('');
-    setPhoneNumber('');
-    setConfirmationCode('');
-    setPendingEmail('');
+    setEmail("");
+    setPassword("");
+    setGivenName("");
+    setPhoneNumber("");
+    setConfirmationCode("");
+    setPendingEmail("");
+    setNewPassword("");
     clearError();
   };
 
+  const goBackToSignIn = () => {
+    setIsConfirming(false);
+    setIsForgotPassword(false);
+    setIsConfirmingForgotPassword(false);
+    setIsSignUp(false);
+    clearForm();
+  };
+
+  // Password reset confirmation screen
+  if (isConfirmingForgotPassword) {
+    return (
+      <ScrollView style={styles.container}>
+        <View style={styles.content}>
+          {/* Logo Section */}
+          <View style={styles.logoSection}>
+            <View style={styles.logoContainer}>
+              <Ionicons name="videocam" size={64} color="#007AFF" />
+            </View>
+            <Text style={styles.appName}>ZentriqVision</Text>
+            <Text style={styles.appTagline}>AI-Powered Video Surveillance</Text>
+          </View>
+
+          <Text style={styles.title}>Reset Password</Text>
+          <Text style={styles.subtitle}>
+            Please enter the reset code sent to {pendingEmail}
+          </Text>
+
+          <View style={styles.form}>
+            <View style={styles.inputContainer}>
+              <Ionicons name="mail-outline" size={20} color="#8e8e93" />
+              <TextInput
+                style={styles.input}
+                placeholder="Reset Code"
+                value={confirmationCode}
+                onChangeText={setConfirmationCode}
+                keyboardType="number-pad"
+                autoCapitalize="none"
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Ionicons name="lock-closed-outline" size={20} color="#8e8e93" />
+              <TextInput
+                style={styles.input}
+                placeholder="New Password"
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry
+                autoComplete="password-new"
+              />
+            </View>
+
+            <TouchableOpacity
+              style={styles.button}
+              onPress={handleConfirmForgotPassword}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text style={styles.buttonText}>Reset Password</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.linkButton}
+              onPress={goBackToSignIn}
+            >
+              <Text style={styles.linkText}>Back to Sign In</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+    );
+  }
+
+  // Email confirmation screen
   if (isConfirming) {
     return (
       <ScrollView style={styles.container}>
         <View style={styles.content}>
+          {/* Logo Section */}
+          <View style={styles.logoSection}>
+            <View style={styles.logoContainer}>
+              <Ionicons name="videocam" size={64} color="#007AFF" />
+            </View>
+            <Text style={styles.appName}>ZentriqVision</Text>
+            <Text style={styles.appTagline}>AI-Powered Video Surveillance</Text>
+          </View>
+
           <Text style={styles.title}>Confirm Account</Text>
           <Text style={styles.subtitle}>
             Please enter the confirmation code sent to {pendingEmail}
@@ -146,16 +294,73 @@ export default function AuthScreen() {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.linkButton} onPress={handleResendCode}>
+            <TouchableOpacity
+              style={styles.linkButton}
+              onPress={handleResendCode}
+            >
               <Text style={styles.linkText}>Resend Code</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.linkButton}
-              onPress={() => {
-                setIsConfirming(false);
-                clearForm();
-              }}
+              onPress={goBackToSignIn}
+            >
+              <Text style={styles.linkText}>Back to Sign In</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+    );
+  }
+
+  // Forgot password screen
+  if (isForgotPassword) {
+    return (
+      <ScrollView style={styles.container}>
+        <View style={styles.content}>
+          {/* Logo Section */}
+          <View style={styles.logoSection}>
+            <View style={styles.logoContainer}>
+              <Ionicons name="videocam" size={64} color="#007AFF" />
+            </View>
+            <Text style={styles.appName}>ZentriqVision</Text>
+            <Text style={styles.appTagline}>AI-Powered Video Surveillance</Text>
+          </View>
+
+          <Text style={styles.title}>Forgot Password</Text>
+          <Text style={styles.subtitle}>
+            Enter your email to receive a password reset code
+          </Text>
+
+          <View style={styles.form}>
+            <View style={styles.inputContainer}>
+              <Ionicons name="mail-outline" size={20} color="#8e8e93" />
+              <TextInput
+                style={styles.input}
+                placeholder="Email"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+              />
+            </View>
+
+            <TouchableOpacity
+              style={styles.button}
+              onPress={handleForgotPassword}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text style={styles.buttonText}>Send Reset Code</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.linkButton}
+              onPress={goBackToSignIn}
             >
               <Text style={styles.linkText}>Back to Sign In</Text>
             </TouchableOpacity>
@@ -168,13 +373,22 @@ export default function AuthScreen() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.content}>
+        {/* Logo Section */}
+        <View style={styles.logoSection}>
+          <View style={styles.logoContainer}>
+            <Ionicons name="videocam" size={64} color="#007AFF" />
+          </View>
+          <Text style={styles.appName}>ZentriqVision</Text>
+          <Text style={styles.appTagline}>AI-Powered Video Surveillance</Text>
+        </View>
+
         <Text style={styles.title}>
-          {isSignUp ? 'Create Account' : 'Welcome Back'}
+          {isSignUp ? "Create Account" : "Welcome Back"}
         </Text>
         <Text style={styles.subtitle}>
           {isSignUp
-            ? 'Sign up to start using ZentriqVision'
-            : 'Sign in to your account'}
+            ? "Sign up to start using ZentriqVision"
+            : "Sign in to your account"}
         </Text>
 
         {error && (
@@ -245,7 +459,7 @@ export default function AuthScreen() {
               <ActivityIndicator color="white" />
             ) : (
               <Text style={styles.buttonText}>
-                {isSignUp ? 'Create Account' : 'Sign In'}
+                {isSignUp ? "Create Account" : "Sign In"}
               </Text>
             )}
           </TouchableOpacity>
@@ -259,13 +473,16 @@ export default function AuthScreen() {
           >
             <Text style={styles.linkText}>
               {isSignUp
-                ? 'Already have an account? Sign In'
+                ? "Already have an account? Sign In"
                 : "Don't have an account? Sign Up"}
             </Text>
           </TouchableOpacity>
 
           {!isSignUp && (
-            <TouchableOpacity style={styles.linkButton}>
+            <TouchableOpacity
+              style={styles.linkButton}
+              onPress={() => setIsForgotPassword(true)}
+            >
               <Text style={styles.linkText}>Forgot Password?</Text>
             </TouchableOpacity>
           )}
@@ -278,36 +495,71 @@ export default function AuthScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
   },
   content: {
     padding: 20,
     flex: 1,
+    justifyContent: "center",
+  },
+  logoSection: {
+    alignItems: "center",
+    marginBottom: 30,
+  },
+  logoContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#f0f8ff',
     justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+    shadowColor: '#007AFF',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: '#007AFF',
+  },
+  appName: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#1c1c1e",
+    textAlign: "center",
+    marginBottom: 5,
+  },
+  appTagline: {
+    fontSize: 16,
+    color: "#8e8e93",
+    textAlign: "center",
   },
   title: {
     fontSize: 32,
-    fontWeight: 'bold',
-    color: '#1c1c1e',
-    textAlign: 'center',
+    fontWeight: "bold",
+    color: "#1c1c1e",
+    textAlign: "center",
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: '#8e8e93',
-    textAlign: 'center',
+    color: "#8e8e93",
+    textAlign: "center",
     marginBottom: 30,
   },
   errorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFE5E5',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFE5E5",
     padding: 15,
     borderRadius: 12,
     marginBottom: 20,
   },
   errorText: {
-    color: '#FF3B30',
+    color: "#FF3B30",
     marginLeft: 10,
     flex: 1,
   },
@@ -315,13 +567,13 @@ const styles = StyleSheet.create({
     gap: 15,
   },
   inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "white",
     borderRadius: 12,
     paddingHorizontal: 15,
     paddingVertical: 12,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
@@ -334,14 +586,14 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 10,
     fontSize: 16,
-    color: '#1c1c1e',
+    color: "#1c1c1e",
   },
   button: {
-    backgroundColor: '#007AFF',
+    backgroundColor: "#007AFF",
     borderRadius: 12,
     padding: 15,
-    alignItems: 'center',
-    shadowColor: '#000',
+    alignItems: "center",
+    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
@@ -351,17 +603,17 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   buttonText: {
-    color: 'white',
+    color: "white",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   linkButton: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 10,
   },
   linkText: {
-    color: '#007AFF',
+    color: "#007AFF",
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
 });
