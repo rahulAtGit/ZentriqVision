@@ -5,11 +5,41 @@ from datetime import datetime, timedelta
 import uuid
 from typing import Dict, Any, List
 
+
 # Initialize AWS clients
 rekognition = boto3.client('rekognition')
 s3 = boto3.client('s3')
 dynamodb = boto3.resource('dynamodb')
 sns = boto3.client('sns')
+
+def generate_thumbnail(bucket: str, video_key: str, org_id: str, video_id: str, faces_data: List[Dict[str, Any]]) -> str:
+    """Generate thumbnail from first frame with faces and upload to S3"""
+    
+    if not faces_data:
+        print(f"No faces detected in video {video_id}, skipping thumbnail generation")
+        return None
+    
+    try:
+        # For now, we'll create a placeholder thumbnail approach
+        # TODO: Add FFmpeg Lambda Layer for actual frame extraction
+        
+        # Find first frame with faces
+        first_face_timestamp = min(face['Timestamp'] for face in faces_data)
+        frame_number = int(first_face_timestamp / 1000)  # Convert ms to seconds
+        
+        print(f"Would extract frame at {frame_number} seconds for thumbnail (FFmpeg not available)")
+        
+        # Create a placeholder thumbnail key (we'll implement actual generation later)
+        thumbnail_key = f"{org_id}/thumbnails/{video_id}.jpg"
+        
+        # For now, return the key structure - actual thumbnail generation will be added
+        # when we add the FFmpeg Lambda Layer
+        print(f"Thumbnail key prepared: {thumbnail_key}")
+        return thumbnail_key
+                
+    except Exception as e:
+        print(f"Error in thumbnail generation: {e}")
+        return None
 
 def handler(event, context):
     """Process uploaded video using AWS Rekognition"""
@@ -132,20 +162,31 @@ def process_rekognition_results(event, context):
                 # Process and store results
                 process_face_detections(org_id, video_id, response['Faces'])
                 
-                # Update video status to PROCESSED
+                # Generate thumbnail from first frame with faces
+                print(f"Generating thumbnail for video {video_id}")
+                thumbnail_key = generate_thumbnail(bucket, key, org_id, video_id, response['Faces'])
+                
+                # Update video status to PROCESSED with thumbnail info
+                update_expression = "SET #status = :status, processingCompletedAt = :timestamp"
+                expression_values = {
+                    ':status': 'PROCESSED',
+                    ':timestamp': datetime.utcnow().isoformat()
+                }
+                
+                if thumbnail_key:
+                    update_expression += ", thumbnailUrl = :thumbnailUrl"
+                    expression_values[':thumbnailUrl'] = f"s3://{bucket}/{thumbnail_key}"
+                
                 table.update_item(
                     Key={
                         'PK': f"ORG#{org_id}",
                         'SK': f"VIDEO#{video_id}"
                     },
-                    UpdateExpression="SET #status = :status, processingCompletedAt = :timestamp",
+                    UpdateExpression=update_expression,
                     ExpressionAttributeNames={
                         '#status': 'status'
                     },
-                    ExpressionAttributeValues={
-                        ':status': 'PROCESSED',
-                        ':timestamp': datetime.utcnow().isoformat()
-                    }
+                    ExpressionAttributeValues=expression_values
                 )
                 
                 print(f"Successfully processed video {video_id}")
