@@ -20,21 +20,26 @@ def generate_thumbnail(bucket: str, video_key: str, org_id: str, video_id: str, 
         return None
     
     try:
-        # For now, we'll create a placeholder thumbnail approach
-        # TODO: Add FFmpeg Lambda Layer for actual frame extraction
-        
         # Find first frame with faces
         first_face_timestamp = min(face['Timestamp'] for face in faces_data)
         frame_number = int(first_face_timestamp / 1000)  # Convert ms to seconds
         
-        print(f"Would extract frame at {frame_number} seconds for thumbnail (FFmpeg not available)")
+        print(f"First face detected at {frame_number} seconds for thumbnail")
         
-        # Create a placeholder thumbnail key (we'll implement actual generation later)
+        # Create thumbnail key structure
         thumbnail_key = f"{org_id}/thumbnails/{video_id}.jpg"
         
-        # For now, return the key structure - actual thumbnail generation will be added
-        # when we add the FFmpeg Lambda Layer
-        print(f"Thumbnail key prepared: {thumbnail_key}")
+        # For now, we'll create a placeholder approach
+        # TODO: Implement actual frame extraction using one of these methods:
+        # 1. AWS MediaConvert for frame extraction
+        # 2. FFmpeg Lambda Layer (when we get it working)
+        # 3. Use Rekognition's frame data if available
+        
+        # Store thumbnail metadata in DynamoDB for now
+        # The actual thumbnail image will be generated in a future iteration
+        print(f"Thumbnail metadata prepared: {thumbnail_key}")
+        print(f"Frame timestamp: {frame_number}s, Face count: {len(faces_data)}")
+        
         return thumbnail_key
                 
     except Exception as e:
@@ -174,8 +179,14 @@ def process_rekognition_results(event, context):
                 }
                 
                 if thumbnail_key:
-                    update_expression += ", thumbnailUrl = :thumbnailUrl"
+                    update_expression += ", thumbnailUrl = :thumbnailUrl, thumbnailMetadata = :thumbnailMeta"
                     expression_values[':thumbnailUrl'] = f"s3://{bucket}/{thumbnail_key}"
+                    expression_values[':thumbnailMeta'] = {
+                        'frameTimestamp': int(first_face_timestamp / 1000),
+                        'faceCount': len(response['Faces']),
+                        'generatedAt': datetime.utcnow().isoformat(),
+                        'status': 'metadata_ready'  # Will be 'ready' when actual image is generated
+                    }
                 
                 table.update_item(
                     Key={
