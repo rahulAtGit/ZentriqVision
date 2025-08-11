@@ -6,6 +6,7 @@ import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as sns from "aws-cdk-lib/aws-sns";
+import * as sns_subscriptions from "aws-cdk-lib/aws-sns-subscriptions";
 import * as s3n from "aws-cdk-lib/aws-s3-notifications";
 import { Construct } from "constructs";
 
@@ -195,6 +196,84 @@ export class ZentriqVisionStack extends cdk.Stack {
       memorySize: 512,
     });
 
+    // Create Rekognition service role
+    const rekognitionRole = new iam.Role(this, "RekognitionServiceRole", {
+      assumedBy: new iam.ServicePrincipal("rekognition.amazonaws.com"),
+      description: "Role for Rekognition to access S3 and other resources",
+    });
+
+    // Grant Rekognition role MAXIMUM S3 permissions for comprehensive access
+    videoBucket.grantRead(rekognitionRole);
+
+    // Additional comprehensive S3 permissions that Rekognition might need
+    rekognitionRole.addToPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          // Object operations
+          "s3:GetObject",
+          "s3:GetObjectVersion",
+          "s3:GetObjectAcl",
+          "s3:GetObjectTagging",
+          "s3:GetObjectTorrent",
+          "s3:GetObjectRetention",
+          "s3:GetObjectLegalHold",
+
+          // Bucket operations
+          "s3:ListBucket",
+          "s3:GetBucketLocation",
+          "s3:GetBucketVersioning",
+          "s3:GetBucketPolicy",
+          "s3:GetBucketAcl",
+          "s3:GetBucketTagging",
+          "s3:GetBucketNotification",
+          "s3:GetBucketRequestPayment",
+          "s3:GetBucketLogging",
+          "s3:GetBucketLifecycle",
+          "s3:GetBucketReplication",
+          "s3:GetBucketAccelerateConfiguration",
+          "s3:GetBucketEncryption",
+          "s3:GetBucketIntelligentTieringConfiguration",
+          "s3:GetBucketAnalyticsConfiguration",
+          "s3:GetBucketMetricsConfiguration",
+          "s3:GetBucketOwnershipControls",
+
+          // List and describe operations
+          "s3:ListBucketVersions",
+          "s3:ListBucketMultipartUploads",
+          "s3:ListMultipartUploadParts",
+
+          // Head operations (for metadata)
+          "s3:HeadObject",
+          "s3:HeadBucket",
+        ],
+        resources: [videoBucket.bucketArn, `${videoBucket.bucketArn}/*`],
+      })
+    );
+
+    // Grant SNS permissions to Rekognition role for notifications
+    videoProcessingTopic.grantPublish(rekognitionRole);
+
+    // Additional permissions that Rekognition might need
+    rekognitionRole.addToPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          // CloudWatch permissions for logging
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+
+          // Additional Rekognition permissions
+          "rekognition:DescribeVideoAnalysis",
+          "rekognition:ListFaces",
+          "rekognition:GetFaceDetection",
+          "rekognition:StartFaceDetection",
+        ],
+        resources: ["*"],
+      })
+    );
+
     // Video Processing Lambda function (Python)
     const processingLambda = new lambda.Function(this, "ProcessingLambda", {
       runtime: lambda.Runtime.PYTHON_3_9,
@@ -205,10 +284,16 @@ export class ZentriqVisionStack extends cdk.Stack {
         DATA_TABLE: dataTable.tableName,
         SNS_TOPIC_ARN: videoProcessingTopic.topicArn,
         MEDIACONVERT_ENDPOINT: "https://mediaconvert.us-east-1.amazonaws.com",
+        REKOGNITION_ROLE_ARN: rekognitionRole.roleArn,
       },
       timeout: cdk.Duration.minutes(15),
       memorySize: 1024,
     });
+
+    // Add SNS subscription for Processing Lambda to receive Rekognition notifications
+    videoProcessingTopic.addSubscription(
+      new sns_subscriptions.LambdaSubscription(processingLambda)
+    );
 
     // 6. API Gateway
     const api = new apigateway.RestApi(this, "ZentriqVisionApi", {
@@ -279,16 +364,58 @@ export class ZentriqVisionStack extends cdk.Stack {
     dataTable.grantReadData(playbackLambda);
     videoProcessingTopic.grantPublish(processingLambda);
 
-    // Grant MediaConvert permissions to Processing Lambda
+    // Create MediaConvert service role
+    const mediaConvertRole = new iam.Role(this, "MediaConvertServiceRole", {
+      assumedBy: new iam.ServicePrincipal("mediaconvert.amazonaws.com"),
+      description: "Role for MediaConvert to access S3 and other resources",
+    });
+
+    // Grant MediaConvert role comprehensive permissions
+    videoBucket.grantReadWrite(mediaConvertRole);
+    dataTable.grantReadWriteData(mediaConvertRole);
+
+    // Grant SNS permissions to MediaConvert role for notifications
+    videoProcessingTopic.grantPublish(mediaConvertRole);
+
+    // Grant ALL necessary permissions to Processing Lambda in one comprehensive policy
     processingLambda.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: [
+          // MediaConvert permissions
           "mediaconvert:CreateJob",
           "mediaconvert:GetJob",
           "mediaconvert:DescribeEndpoints",
+          "mediaconvert:ListJobs",
+
+          // Rekognition permissions
+          "rekognition:StartFaceDetection",
+          "rekognition:GetFaceDetection",
+          "rekognition:ListFaces",
+          "rekognition:DescribeVideoAnalysis",
+
+          // SNS permissions (for notifications)
+          "sns:Publish",
+          "sns:GetTopicAttributes",
+
+          // IAM permissions (for passing roles)
+          "iam:PassRole",
+
+          // CloudWatch Logs (for Lambda logging)
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
         ],
         resources: ["*"],
+      })
+    );
+
+    // Grant specific IAM PassRole permissions for our service roles
+    processingLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["iam:PassRole"],
+        resources: [mediaConvertRole.roleArn, rekognitionRole.roleArn],
       })
     );
 

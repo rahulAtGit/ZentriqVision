@@ -47,45 +47,65 @@ def generate_thumbnail(bucket: str, video_key: str, org_id: str, video_id: str, 
                 'OutputGroups': [{
                     'Name': 'File Group',
                     'OutputGroupSettings': {
+                        'Type': 'FILE_GROUP_SETTINGS',
                         'FileGroupSettings': {
                             'Destination': f"s3://{bucket}/{org_id}/thumbnails/"
                         }
                     },
-                    'Outputs': [{
-                        'NameModifier': f"_{video_id}_frame",
-                        'OutputSettings': {
-                            'FileSettings': {
-                                'NameModifier': f"_{video_id}_frame"
+                    'Outputs': [
+                        {
+                            'NameModifier': f"_{video_id}_video",
+                            'ContainerSettings': {
+                                'Container': 'MP4'
+                            },
+                            'VideoDescription': {
+                                'Width': 320,
+                                'Height': 240,
+                                'ScalingBehavior': 'DEFAULT',
+                                'CodecSettings': {
+                                    'Codec': 'H_264',
+                                    'H264Settings': {
+                                        'MaxBitrate': 1000000,
+                                        'RateControlMode': 'QVBR',
+                                        'QvbrSettings': {
+                                            'QvbrQualityLevel': 7
+                                        }
+                                    }
+                                }
                             }
                         },
-                        'VideoDescription': {
-                            'Width': 320,
-                            'Height': 240,
-                            'ScalingBehavior': 'DEFAULT',
-                            'CodecSettings': {
-                                'Codec': 'FRAME_CAPTURE',
-                                'FrameCaptureSettings': {
-                                    'MaxCaptures': 1,
-                                    'Quality': 80,
-                                    'FramerateNumerator': 1,
-                                    'FramerateDenominator': 1
+                        {
+                            'NameModifier': f"_{video_id}_frame",
+                            'ContainerSettings': {
+                                'Container': 'RAW'
+                            },
+                            'VideoDescription': {
+                                'Width': 320,
+                                'Height': 240,
+                                'ScalingBehavior': 'DEFAULT',
+                                'CodecSettings': {
+                                    'Codec': 'FRAME_CAPTURE',
+                                    'FrameCaptureSettings': {
+                                        'MaxCaptures': 1,
+                                        'Quality': 80
+                                    }
                                 }
                             }
                         }
-                    }]
+                    ]
                 }]
             }
             
-            # Submit MediaConvert job
+                        # Submit MediaConvert job
             response = mediaconvert_client.create_job(
-                Role='arn:aws:iam::804857032172:role/aws-mediaconvert-default',  # Use default MediaConvert role
-                Settings=job_settings,
-                UserMetadata={
-                    'videoId': video_id,
-                    'orgId': org_id,
-                    'frameTimestamp': str(frame_number)
-                }
-            )
+                    Role='arn:aws:iam::804857032172:role/ZentriqVisionStack-MediaConvertServiceRole08F94F4A-LiWrgvEvyiN6',  # Use our custom MediaConvert role
+                    Settings=job_settings,
+                    UserMetadata={
+                        'videoId': video_id,
+                        'orgId': org_id,
+                        'frameTimestamp': str(frame_number)
+                    }
+                )
             
             job_id = response['Job']['Id']
             print(f"MediaConvert job {job_id} submitted for frame extraction")
@@ -118,9 +138,30 @@ def generate_thumbnail(bucket: str, video_key: str, org_id: str, video_id: str, 
         return None
 
 def handler(event, context):
-    """Process uploaded video using AWS Rekognition"""
+    """Main handler that routes events to appropriate functions"""
     
     print(f"Processing event: {json.dumps(event)}")
+    
+    # Check event type and route accordingly
+    for record in event['Records']:
+        if 'EventSource' in record and record['EventSource'] == 'aws:sns':
+            # This is an SNS event (Rekognition completion)
+            print("Routing to Rekognition results processing")
+            return process_rekognition_results(event, context)
+        elif 's3' in record:
+            # This is an S3 event (video upload)
+            print("Routing to S3 video processing")
+            return process_s3_video_upload(event, context)
+        else:
+            print(f"Unknown event type: {record}")
+    
+    return {
+        'statusCode': 400,
+        'body': json.dumps('Unknown event type')
+    }
+
+def process_s3_video_upload(event, context):
+    """Process uploaded video using AWS Rekognition"""
     
     # Parse S3 event
     for record in event['Records']:
@@ -138,20 +179,21 @@ def handler(event, context):
         
         print(f"Processing video {video_id} for org {org_id}")
         
-        # Update video status to PROCESSING
+        # Update video status to PROCESSING and store video key
         table = dynamodb.Table(os.environ['DATA_TABLE'])
         table.update_item(
             Key={
                 'PK': f"ORG#{org_id}",
                 'SK': f"VIDEO#{video_id}"
             },
-            UpdateExpression="SET #status = :status, processingStartedAt = :timestamp",
+            UpdateExpression="SET #status = :status, processingStartedAt = :timestamp, videoKey = :videoKey",
             ExpressionAttributeNames={
                 '#status': 'status'
             },
             ExpressionAttributeValues={
                 ':status': 'PROCESSING',
-                ':timestamp': datetime.utcnow().isoformat()
+                ':timestamp': datetime.utcnow().isoformat(),
+                ':videoKey': key
             }
         )
         
@@ -238,25 +280,49 @@ def process_rekognition_results(event, context):
                 # Process and store results
                 process_face_detections(org_id, video_id, response['Faces'])
                 
-                # Generate thumbnail from first frame with faces
-                print(f"Generating thumbnail for video {video_id}")
-                thumbnail_key = generate_thumbnail(bucket, key, org_id, video_id, response['Faces'])
+                # Get video info from DynamoDB to get bucket and key
+                video_item = table.get_item(
+                    Key={
+                        'PK': f"ORG#{org_id}",
+                        'SK': f"VIDEO#{video_id}"
+                    }
+                )
                 
-                # Update video status to PROCESSED with thumbnail info
-                update_expression = "SET #status = :status, processingCompletedAt = :timestamp"
-                expression_values = {
-                    ':status': 'PROCESSED',
-                    ':timestamp': datetime.utcnow().isoformat()
-                }
-                
-                if thumbnail_key:
-                    update_expression += ", thumbnailUrl = :thumbnailUrl, thumbnailMetadata = :thumbnailMeta"
-                    expression_values[':thumbnailUrl'] = f"s3://{bucket}/{thumbnail_key}"
-                    expression_values[':thumbnailMeta'] = {
-                        'frameTimestamp': int(first_face_timestamp / 1000),
-                        'faceCount': len(response['Faces']),
-                        'generatedAt': datetime.utcnow().isoformat(),
-                        'status': 'metadata_ready'  # Will be 'ready' when actual image is generated
+                if 'Item' in video_item:
+                    video_info = video_item['Item']
+                    bucket = os.environ['VIDEO_BUCKET']
+                    video_key = video_info.get('videoKey', f"{org_id}/videos/{video_id}.mp4")
+                    
+                    # Calculate first face timestamp
+                    first_face_timestamp = min(face['Timestamp'] for face in response['Faces']) if response['Faces'] else 0
+                    
+                    # Generate thumbnail from first frame with faces
+                    print(f"Generating thumbnail for video {video_id}")
+                    thumbnail_key = generate_thumbnail(bucket, video_key, org_id, video_id, response['Faces'])
+                    
+                    # Update video status to PROCESSED with thumbnail info
+                    update_expression = "SET #status = :status, processingCompletedAt = :timestamp"
+                    expression_values = {
+                        ':status': 'PROCESSED',
+                        ':timestamp': datetime.utcnow().isoformat()
+                    }
+                    
+                    if thumbnail_key:
+                        update_expression += ", thumbnailUrl = :thumbnailUrl, thumbnailMetadata = :thumbnailMeta"
+                        expression_values[':thumbnailUrl'] = f"s3://{bucket}/{thumbnail_key}"
+                        expression_values[':thumbnailMeta'] = {
+                            'frameTimestamp': int(first_face_timestamp / 1000),
+                            'faceCount': len(response['Faces']),
+                            'generatedAt': datetime.utcnow().isoformat(),
+                            'status': 'metadata_ready'  # Will be 'ready' when actual image is generated
+                        }
+                else:
+                    print(f"Video info not found for {video_id}")
+                    thumbnail_key = None
+                    update_expression = "SET #status = :status, processingCompletedAt = :timestamp"
+                    expression_values = {
+                        ':status': 'PROCESSED',
+                        ':timestamp': datetime.utcnow().isoformat()
                     }
                 
                 table.update_item(
