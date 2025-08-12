@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -7,27 +7,30 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { useAuthStore } from '../hooks/useAuthStore';
-import { useApi } from '../hooks/useApi';
-import { TEST_CONFIG } from '../config/test-config';
-import { Ionicons } from '@expo/vector-icons';
+} from "react-native";
+import { useRouter } from "expo-router";
+import { useAuthStore } from "../hooks/useAuthStore";
+import { useApi } from "../hooks/useApi";
+import { TEST_CONFIG } from "../config/test-config";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function TestScreen() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading, signIn, signOut } = useAuthStore();
   const { useUploadVideo, useSearchDetections, useVideoDetails } = useApi();
-  
+
   const [testResults, setTestResults] = useState<string[]>([]);
   const [isRunningTests, setIsRunningTests] = useState(false);
 
   const uploadVideoMutation = useUploadVideo();
   const searchDetectionsQuery = useSearchDetections({}, 10);
-  const videoDetailsQuery = useVideoDetails('test-video-1');
+  const videoDetailsQuery = useVideoDetails("test-video-1");
 
   const addTestResult = (result: string) => {
-    setTestResults(prev => [...prev, `${new Date().toLocaleTimeString()}: ${result}`]);
+    setTestResults((prev) => [
+      ...prev,
+      `${new Date().toLocaleTimeString()}: ${result}`,
+    ]);
   };
 
   const clearTestResults = () => {
@@ -36,25 +39,33 @@ export default function TestScreen() {
 
   const runAuthenticationTests = async () => {
     setIsRunningTests(true);
-    addTestResult('Starting authentication tests...');
+    addTestResult("Starting authentication tests...");
 
     try {
       // Test 1: Check authentication state
-      addTestResult(`Authentication state: ${isAuthenticated ? 'Authenticated' : 'Not authenticated'}`);
-      
+      addTestResult(
+        `Authentication state: ${
+          isAuthenticated ? "Authenticated" : "Not authenticated"
+        }`
+      );
+
       if (isAuthenticated) {
         addTestResult(`User: ${user?.givenName} (${user?.email})`);
       } else {
         // Test 2: Try to sign in with test credentials
-        addTestResult('Attempting to sign in with test credentials...');
+        addTestResult("Attempting to sign in with test credentials...");
         await signIn({
           email: TEST_CONFIG.testUser.email,
           password: TEST_CONFIG.testUser.password,
         });
-        addTestResult('Sign in successful!');
+        addTestResult("Sign in successful!");
       }
     } catch (error) {
-      addTestResult(`Authentication test failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      addTestResult(
+        `Authentication test failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     }
 
     setIsRunningTests(false);
@@ -62,37 +73,42 @@ export default function TestScreen() {
 
   const runApiTests = async () => {
     setIsRunningTests(true);
-    addTestResult('Starting API tests...');
+    addTestResult("Starting API tests...");
 
     try {
       // Test 1: Search detections
-      addTestResult('Testing search detections...');
+      addTestResult("Testing search detections...");
       const searchData = await searchDetectionsQuery.refetch();
       if (searchData.data) {
-        addTestResult(`Search successful: ${searchData.data.count} detections found`);
+        addTestResult(
+          `Search successful: ${searchData.data.count} detections found`
+        );
       } else {
-        addTestResult('Search failed');
+        addTestResult("Search failed");
       }
 
       // Test 2: Video details
-      addTestResult('Testing video details...');
+      addTestResult("Testing video details...");
       const videoData = await videoDetailsQuery.refetch();
       if (videoData.data) {
         addTestResult(`Video details successful: ${videoData.data.fileName}`);
       } else {
-        addTestResult('Video details failed');
+        addTestResult("Video details failed");
       }
 
       // Test 3: Upload video (mock)
-      addTestResult('Testing video upload...');
+      addTestResult("Testing video upload...");
       const uploadResult = await uploadVideoMutation.mutateAsync({
         fileName: TEST_CONFIG.testVideo.fileName,
         fileType: TEST_CONFIG.testVideo.fileType,
       });
       addTestResult(`Upload successful: ${uploadResult.videoId}`);
-
     } catch (error) {
-      addTestResult(`API test failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      addTestResult(
+        `API test failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     }
 
     setIsRunningTests(false);
@@ -102,16 +118,20 @@ export default function TestScreen() {
     clearTestResults();
     await runAuthenticationTests();
     await runApiTests();
-    addTestResult('All tests completed!');
+    addTestResult("All tests completed!");
   };
 
   const testSignOut = async () => {
     try {
       await signOut();
-      addTestResult('Sign out successful');
-      router.replace('/auth');
+      addTestResult("Sign out successful");
+      router.replace("/auth");
     } catch (error) {
-      addTestResult(`Sign out failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      addTestResult(
+        `Sign out failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     }
   };
 
@@ -119,12 +139,14 @@ export default function TestScreen() {
     <ScrollView style={styles.container}>
       <View style={styles.content}>
         <Text style={styles.title}>Test Suite</Text>
-        <Text style={styles.subtitle}>Validate authentication and API integration</Text>
+        <Text style={styles.subtitle}>
+          Validate authentication and API integration
+        </Text>
 
         {/* Test Controls */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Test Controls</Text>
-          
+
           <TouchableOpacity
             style={styles.testButton}
             onPress={runAllTests}
@@ -171,16 +193,17 @@ export default function TestScreen() {
           <Text style={styles.sectionTitle}>Current Status</Text>
           <View style={styles.statusCard}>
             <View style={styles.statusRow}>
-              <Ionicons 
-                name={isAuthenticated ? "checkmark-circle" : "close-circle"} 
-                size={20} 
-                color={isAuthenticated ? "#34C759" : "#FF3B30"} 
+              <Ionicons
+                name={isAuthenticated ? "checkmark-circle" : "close-circle"}
+                size={20}
+                color={isAuthenticated ? "#34C759" : "#FF3B30"}
               />
               <Text style={styles.statusText}>
-                Authentication: {isAuthenticated ? 'Authenticated' : 'Not authenticated'}
+                Authentication:{" "}
+                {isAuthenticated ? "Authenticated" : "Not authenticated"}
               </Text>
             </View>
-            
+
             {user && (
               <View style={styles.statusRow}>
                 <Ionicons name="person" size={20} color="#007AFF" />
@@ -191,24 +214,27 @@ export default function TestScreen() {
             )}
 
             <View style={styles.statusRow}>
-              <Ionicons 
-                name={searchDetectionsQuery.isLoading ? "time" : "checkmark-circle"} 
-                size={20} 
-                color={searchDetectionsQuery.isLoading ? "#FF9500" : "#34C759"} 
+              <Ionicons
+                name={
+                  searchDetectionsQuery.isLoading ? "time" : "checkmark-circle"
+                }
+                size={20}
+                color={searchDetectionsQuery.isLoading ? "#FF9500" : "#34C759"}
               />
               <Text style={styles.statusText}>
-                Search API: {searchDetectionsQuery.isLoading ? 'Loading' : 'Ready'}
+                Search API:{" "}
+                {searchDetectionsQuery.isLoading ? "Loading" : "Ready"}
               </Text>
             </View>
 
             <View style={styles.statusRow}>
-              <Ionicons 
-                name={videoDetailsQuery.isLoading ? "time" : "checkmark-circle"} 
-                size={20} 
-                color={videoDetailsQuery.isLoading ? "#FF9500" : "#34C759"} 
+              <Ionicons
+                name={videoDetailsQuery.isLoading ? "time" : "checkmark-circle"}
+                size={20}
+                color={videoDetailsQuery.isLoading ? "#FF9500" : "#34C759"}
               />
               <Text style={styles.statusText}>
-                Video API: {videoDetailsQuery.isLoading ? 'Loading' : 'Ready'}
+                Video API: {videoDetailsQuery.isLoading ? "Loading" : "Ready"}
               </Text>
             </View>
           </View>
@@ -219,7 +245,9 @@ export default function TestScreen() {
           <Text style={styles.sectionTitle}>Test Results</Text>
           <View style={styles.resultsContainer}>
             {testResults.length === 0 ? (
-              <Text style={styles.noResultsText}>No test results yet. Run tests to see results.</Text>
+              <Text style={styles.noResultsText}>
+                No test results yet. Run tests to see results.
+              </Text>
             ) : (
               testResults.map((result, index) => (
                 <View key={index} style={styles.resultItem}>
@@ -233,7 +261,7 @@ export default function TestScreen() {
         {/* Actions */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Actions</Text>
-          
+
           <TouchableOpacity
             style={[styles.testButton, styles.signOutButton]}
             onPress={testSignOut}
@@ -257,20 +285,20 @@ export default function TestScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
   },
   content: {
     padding: 20,
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1c1c1e',
+    fontWeight: "bold",
+    color: "#1c1c1e",
     marginBottom: 5,
   },
   subtitle: {
     fontSize: 16,
-    color: '#8e8e93',
+    color: "#8e8e93",
     marginBottom: 30,
   },
   section: {
@@ -278,19 +306,19 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 15,
-    color: '#1c1c1e',
+    color: "#1c1c1e",
   },
   testButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: "#007AFF",
     borderRadius: 12,
     padding: 15,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 10,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
@@ -300,40 +328,40 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   testButtonText: {
-    color: 'white',
+    color: "white",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     marginLeft: 8,
   },
   buttonRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 10,
   },
   secondaryButton: {
-    backgroundColor: '#f2f2f7',
+    backgroundColor: "#f2f2f7",
     flex: 1,
   },
   secondaryButtonText: {
-    color: '#007AFF',
+    color: "#007AFF",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   clearButton: {
-    backgroundColor: '#FF9500',
+    backgroundColor: "#FF9500",
   },
   clearButtonText: {
-    color: 'white',
+    color: "white",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   signOutButton: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: "#FF3B30",
   },
   statusCard: {
-    backgroundColor: 'white',
+    backgroundColor: "white",
     borderRadius: 12,
     padding: 15,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
@@ -343,21 +371,21 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 8,
   },
   statusText: {
     fontSize: 14,
-    color: '#1c1c1e',
+    color: "#1c1c1e",
     marginLeft: 10,
   },
   resultsContainer: {
-    backgroundColor: 'white',
+    backgroundColor: "white",
     borderRadius: 12,
     padding: 15,
     minHeight: 200,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
@@ -368,18 +396,18 @@ const styles = StyleSheet.create({
   },
   noResultsText: {
     fontSize: 14,
-    color: '#8e8e93',
-    textAlign: 'center',
-    fontStyle: 'italic',
+    color: "#8e8e93",
+    textAlign: "center",
+    fontStyle: "italic",
   },
   resultItem: {
     paddingVertical: 5,
     borderBottomWidth: 1,
-    borderBottomColor: '#f2f2f7',
+    borderBottomColor: "#f2f2f7",
   },
   resultText: {
     fontSize: 12,
-    color: '#1c1c1e',
-    fontFamily: 'monospace',
+    color: "#1c1c1e",
+    fontFamily: "monospace",
   },
 });

@@ -1,46 +1,55 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Alert } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useAuthStore } from '../hooks/useAuthStore';
-import { useApi } from '../hooks/useApi';
-import { Ionicons } from '@expo/vector-icons';
-import { SearchFilters, PersonDetection } from '../types';
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  TextInput,
+  ActivityIndicator,
+  Alert,
+} from "react-native";
+import { useRouter } from "expo-router";
+import { useAuthStore } from "../hooks/useAuthStore";
+import { useApi } from "../hooks/useApi";
+import { Ionicons } from "@expo/vector-icons";
+import { SearchFilters, PersonDetection } from "../types";
 
 export default function SearchScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
   const { useSearchDetections } = useApi();
-  
+
   const [filters, setFilters] = useState<SearchFilters>({});
   const [showFilters, setShowFilters] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Use the API hook for search
   const {
     data: searchData,
     isLoading,
     error,
-    refetch
+    refetch,
   } = useSearchDetections(filters, 50);
 
   const results = searchData?.results || [];
 
   const searchDetections = async () => {
     if (!user) {
-      Alert.alert('Error', 'Please sign in to search');
+      Alert.alert("Error", "Please sign in to search");
       return;
     }
 
     try {
       await refetch();
     } catch (error) {
-      console.error('Search failed:', error);
-      Alert.alert('Error', 'Search failed. Please try again.');
+      console.error("Search failed:", error);
+      Alert.alert("Error", "Search failed. Please try again.");
     }
   };
 
   const updateFilter = (key: keyof SearchFilters, value: any) => {
-    setFilters(prev => ({
+    setFilters((prev) => ({
       ...prev,
       [key]: value,
     }));
@@ -48,7 +57,7 @@ export default function SearchScreen() {
 
   const clearFilters = () => {
     setFilters({});
-    setSearchQuery('');
+    setSearchQuery("");
   };
 
   const navigateToPlayback = (videoId: string) => {
@@ -57,7 +66,7 @@ export default function SearchScreen() {
 
   // Auto-search when filters change
   useEffect(() => {
-    if (Object.keys(filters).length > 0) {
+    if (filters && Object.keys(filters).length > 0) {
       searchDetections();
     }
   }, [filters]);
@@ -78,7 +87,7 @@ export default function SearchScreen() {
     <ScrollView style={styles.container}>
       <View style={styles.content}>
         <Text style={styles.title}>Search Detections</Text>
-        
+
         {/* Search Bar */}
         <View style={styles.searchBar}>
           <Ionicons name="search" size={20} color="#8e8e93" />
@@ -101,23 +110,30 @@ export default function SearchScreen() {
         {showFilters && (
           <View style={styles.filtersContainer}>
             <Text style={styles.filtersTitle}>Filters</Text>
-            
+
             <View style={styles.filterRow}>
               <Text style={styles.filterLabel}>Color:</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {['red', 'blue', 'green', 'black', 'white'].map(color => (
+                {["red", "blue", "green", "black", "white"].map((color) => (
                   <TouchableOpacity
                     key={color}
                     style={[
                       styles.filterChip,
-                      filters.color === color && styles.filterChipActive
+                      filters.color === color && styles.filterChipActive,
                     ]}
-                    onPress={() => updateFilter('color', filters.color === color ? undefined : color)}
+                    onPress={() =>
+                      updateFilter(
+                        "color",
+                        filters.color === color ? undefined : color
+                      )
+                    }
                   >
-                    <Text style={[
-                      styles.filterChipText,
-                      filters.color === color && styles.filterChipTextActive
-                    ]}>
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        filters.color === color && styles.filterChipTextActive,
+                      ]}
+                    >
                       {color}
                     </Text>
                   </TouchableOpacity>
@@ -128,19 +144,27 @@ export default function SearchScreen() {
             <View style={styles.filterRow}>
               <Text style={styles.filterLabel}>Emotion:</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {['happy', 'sad', 'neutral', 'angry'].map(emotion => (
+                {["happy", "sad", "neutral", "angry"].map((emotion) => (
                   <TouchableOpacity
                     key={emotion}
                     style={[
                       styles.filterChip,
-                      filters.emotion === emotion && styles.filterChipActive
+                      filters.emotion === emotion && styles.filterChipActive,
                     ]}
-                    onPress={() => updateFilter('emotion', filters.emotion === emotion ? undefined : emotion)}
+                    onPress={() =>
+                      updateFilter(
+                        "emotion",
+                        filters.emotion === emotion ? undefined : emotion
+                      )
+                    }
                   >
-                    <Text style={[
-                      styles.filterChipText,
-                      filters.emotion === emotion && styles.filterChipTextActive
-                    ]}>
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        filters.emotion === emotion &&
+                          styles.filterChipTextActive,
+                      ]}
+                    >
                       {emotion}
                     </Text>
                   </TouchableOpacity>
@@ -151,19 +175,27 @@ export default function SearchScreen() {
             <View style={styles.filterRow}>
               <Text style={styles.filterLabel}>Age:</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {['0-17', '18-24', '25-34', '35-49', '50+'].map(age => (
+                {["0-17", "18-24", "25-34", "35-49", "50+"].map((age) => (
                   <TouchableOpacity
                     key={age}
                     style={[
                       styles.filterChip,
-                      filters.ageBucket === age && styles.filterChipActive
+                      filters.ageBucket === age && styles.filterChipActive,
                     ]}
-                    onPress={() => updateFilter('ageBucket', filters.ageBucket === age ? undefined : age)}
+                    onPress={() =>
+                      updateFilter(
+                        "ageBucket",
+                        filters.ageBucket === age ? undefined : age
+                      )
+                    }
                   >
-                    <Text style={[
-                      styles.filterChipText,
-                      filters.ageBucket === age && styles.filterChipTextActive
-                    ]}>
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        filters.ageBucket === age &&
+                          styles.filterChipTextActive,
+                      ]}
+                    >
                       {age}
                     </Text>
                   </TouchableOpacity>
@@ -171,7 +203,10 @@ export default function SearchScreen() {
               </ScrollView>
             </View>
 
-            <TouchableOpacity style={styles.clearFiltersButton} onPress={clearFilters}>
+            <TouchableOpacity
+              style={styles.clearFiltersButton}
+              onPress={clearFilters}
+            >
               <Text style={styles.clearFiltersText}>Clear Filters</Text>
             </TouchableOpacity>
           </View>
@@ -197,9 +232,9 @@ export default function SearchScreen() {
         {results.length > 0 && (
           <View style={styles.resultsContainer}>
             <Text style={styles.resultsTitle}>
-              {results.length} detection{results.length !== 1 ? 's' : ''} found
+              {results.length} detection{results.length !== 1 ? "s" : ""} found
             </Text>
-            
+
             {results.map((detection: PersonDetection, index: number) => (
               <TouchableOpacity
                 key={`${detection.personId}-${index}`}
@@ -208,21 +243,23 @@ export default function SearchScreen() {
               >
                 <View style={styles.resultHeader}>
                   <Ionicons name="person" size={24} color="#007AFF" />
-                  <Text style={styles.resultTitle}>Person {detection.personId}</Text>
+                  <Text style={styles.resultTitle}>
+                    Person {detection.personId}
+                  </Text>
                   <Text style={styles.resultConfidence}>
                     {(detection.confidence * 100).toFixed(0)}% confidence
                   </Text>
                 </View>
-                
+
                 <View style={styles.resultDetails}>
                   <Text style={styles.resultDetail}>
-                    Age: {detection.attributes.ageBucket || 'Unknown'}
+                    Age: {detection.attributes.ageBucket || "Unknown"}
                   </Text>
                   <Text style={styles.resultDetail}>
-                    Gender: {detection.attributes.gender || 'Unknown'}
+                    Gender: {detection.attributes.gender || "Unknown"}
                   </Text>
                   <Text style={styles.resultDetail}>
-                    Emotion: {detection.attributes.emotion || 'Unknown'}
+                    Emotion: {detection.attributes.emotion || "Unknown"}
                   </Text>
                   {detection.attributes.upperColor && (
                     <Text style={styles.resultDetail}>
@@ -230,7 +267,7 @@ export default function SearchScreen() {
                     </Text>
                   )}
                 </View>
-                
+
                 <Text style={styles.resultTimestamp}>
                   {new Date(detection.timestamp).toLocaleString()}
                 </Text>
@@ -240,15 +277,18 @@ export default function SearchScreen() {
         )}
 
         {/* No Results */}
-        {!isLoading && results.length === 0 && Object.keys(filters).length > 0 && (
-          <View style={styles.noResultsContainer}>
-            <Ionicons name="search-outline" size={48} color="#8e8e93" />
-            <Text style={styles.noResultsText}>No detections found</Text>
-            <Text style={styles.noResultsSubtext}>
-              Try adjusting your filters or search criteria
-            </Text>
-          </View>
-        )}
+        {!isLoading &&
+          results.length === 0 &&
+          filters &&
+          Object.keys(filters).length > 0 && (
+            <View style={styles.noResultsContainer}>
+              <Ionicons name="search-outline" size={48} color="#8e8e93" />
+              <Text style={styles.noResultsText}>No detections found</Text>
+              <Text style={styles.noResultsSubtext}>
+                Try adjusting your filters or search criteria
+              </Text>
+            </View>
+          )}
       </View>
     </ScrollView>
   );
@@ -257,26 +297,26 @@ export default function SearchScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
   },
   content: {
     padding: 20,
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1c1c1e',
+    fontWeight: "bold",
+    color: "#1c1c1e",
     marginBottom: 20,
   },
   searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "white",
     borderRadius: 12,
     paddingHorizontal: 15,
     paddingVertical: 12,
     marginBottom: 20,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
@@ -294,11 +334,11 @@ const styles = StyleSheet.create({
     padding: 5,
   },
   filtersContainer: {
-    backgroundColor: 'white',
+    backgroundColor: "white",
     borderRadius: 12,
     padding: 20,
     marginBottom: 20,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
@@ -309,54 +349,54 @@ const styles = StyleSheet.create({
   },
   filtersTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 15,
-    color: '#1c1c1e',
+    color: "#1c1c1e",
   },
   filterRow: {
     marginBottom: 15,
   },
   filterLabel: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: "500",
     marginBottom: 8,
-    color: '#1c1c1e',
+    color: "#1c1c1e",
   },
   filterChip: {
-    backgroundColor: '#f2f2f7',
+    backgroundColor: "#f2f2f7",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
     marginRight: 8,
   },
   filterChipActive: {
-    backgroundColor: '#007AFF',
+    backgroundColor: "#007AFF",
   },
   filterChipText: {
-    color: '#8e8e93',
+    color: "#8e8e93",
     fontSize: 14,
   },
   filterChipTextActive: {
-    color: 'white',
+    color: "white",
   },
   clearFiltersButton: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     paddingVertical: 8,
   },
   clearFiltersText: {
-    color: '#FF3B30',
+    color: "#FF3B30",
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   searchButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: "#007AFF",
     borderRadius: 12,
     padding: 15,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 20,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
@@ -366,9 +406,9 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   searchButtonText: {
-    color: 'white',
+    color: "white",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     marginLeft: 8,
   },
   resultsContainer: {
@@ -376,16 +416,16 @@ const styles = StyleSheet.create({
   },
   resultsTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 15,
-    color: '#1c1c1e',
+    color: "#1c1c1e",
   },
   resultCard: {
-    backgroundColor: 'white',
+    backgroundColor: "white",
     borderRadius: 12,
     padding: 15,
     marginBottom: 15,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
@@ -395,71 +435,71 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   resultHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 10,
   },
   resultTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#1c1c1e',
+    fontWeight: "600",
+    color: "#1c1c1e",
     marginLeft: 8,
     flex: 1,
   },
   resultConfidence: {
     fontSize: 14,
-    color: '#8e8e93',
+    color: "#8e8e93",
   },
   resultDetails: {
     marginBottom: 8,
   },
   resultDetail: {
     fontSize: 14,
-    color: '#8e8e93',
+    color: "#8e8e93",
     marginBottom: 2,
   },
   resultTimestamp: {
     fontSize: 12,
-    color: '#8e8e93',
-    fontStyle: 'italic',
+    color: "#8e8e93",
+    fontStyle: "italic",
   },
   noResultsContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     padding: 40,
   },
   noResultsText: {
     fontSize: 18,
-    fontWeight: '500',
-    color: '#8e8e93',
+    fontWeight: "500",
+    color: "#8e8e93",
     marginTop: 15,
     marginBottom: 5,
   },
   noResultsSubtext: {
     fontSize: 14,
-    color: '#8e8e93',
-    textAlign: 'center',
+    color: "#8e8e93",
+    textAlign: "center",
   },
   errorContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   errorText: {
     fontSize: 16,
-    color: '#8e8e93',
+    color: "#8e8e93",
     marginTop: 15,
     marginBottom: 20,
   },
   retryButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: "#007AFF",
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
   },
   retryButtonText: {
-    color: 'white',
+    color: "white",
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
 });

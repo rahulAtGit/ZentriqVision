@@ -1,5 +1,4 @@
-import { Auth } from 'aws-amplify';
-import { CognitoUser, CognitoUserSession, ISignUpResult } from 'amazon-cognito-identity-js';
+import React from "react";
 
 export interface AuthUser {
   userId: string;
@@ -30,182 +29,179 @@ export interface AuthError {
 }
 
 class AuthService {
-  /**
-   * Sign up a new user
-   */
-  async signUp(data: SignUpData): Promise<ISignUpResult> {
-    try {
-      const { email, password, givenName, phoneNumber } = data;
-      
-      const signUpResult = await Auth.signUp({
-        username: email,
-        password,
-        attributes: {
-          email,
-          given_name: givenName,
-          ...(phoneNumber && { phone_number: phoneNumber }),
-        },
-      });
+  private mockUser: AuthUser | null = null;
 
-      return signUpResult;
+  /**
+   * Sign up a new user (mock)
+   */
+  async signUp(data: SignUpData): Promise<any> {
+    try {
+      // Simulate API delay
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Create mock user
+      this.mockUser = {
+        userId: `user_${Date.now()}`,
+        email: data.email,
+        givenName: data.givenName,
+        phoneNumber: data.phoneNumber,
+        orgId: "default-org",
+        isEmailVerified: false,
+        isPhoneVerified: false,
+      };
+
+      return { user: this.mockUser, userConfirmed: false };
     } catch (error) {
-      console.error('Sign up error:', error);
+      console.error("Sign up error:", error);
       throw this.handleAuthError(error);
     }
   }
 
   /**
-   * Confirm sign up with verification code
+   * Confirm sign up with verification code (mock)
    */
   async confirmSignUp(email: string, code: string): Promise<void> {
     try {
-      await Auth.confirmSignUp(email, code);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      if (this.mockUser) {
+        this.mockUser.isEmailVerified = true;
+      }
     } catch (error) {
-      console.error('Confirm sign up error:', error);
+      console.error("Confirm sign up error:", error);
       throw this.handleAuthError(error);
     }
   }
 
   /**
-   * Sign in user
+   * Sign in user (mock)
    */
-  async signIn(data: SignInData): Promise<CognitoUserSession> {
+  async signIn(data: SignInData): Promise<any> {
     try {
-      const { email, password } = data;
-      
-      const user = await Auth.signIn(email, password);
-      return user;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // For demo purposes, accept any email/password
+      this.mockUser = {
+        userId: `user_${Date.now()}`,
+        email: data.email,
+        givenName: "Demo User",
+        phoneNumber: "+1234567890",
+        orgId: "demo-org",
+        isEmailVerified: true,
+        isPhoneVerified: true,
+      };
+
+      return { user: this.mockUser };
     } catch (error) {
-      console.error('Sign in error:', error);
+      console.error("Sign in error:", error);
       throw this.handleAuthError(error);
     }
   }
 
   /**
-   * Sign out user
+   * Sign out user (mock)
    */
   async signOut(): Promise<void> {
     try {
-      await Auth.signOut();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      this.mockUser = null;
     } catch (error) {
-      console.error('Sign out error:', error);
+      console.error("Sign out error:", error);
       throw this.handleAuthError(error);
     }
   }
 
   /**
-   * Get current authenticated user
+   * Get current authenticated user (mock)
    */
   async getCurrentUser(): Promise<AuthUser | null> {
     try {
-      const user = await Auth.currentAuthenticatedUser();
-      if (!user) return null;
-
-      const attributes = user.attributes;
-      const groups = user.signInUserSession?.accessToken?.payload['cognito:groups'] || [];
-
-      return {
-        userId: user.username,
-        email: attributes.email,
-        givenName: attributes.given_name || attributes.name || '',
-        phoneNumber: attributes.phone_number,
-        orgId: groups[0] || 'default-org', // Use first group as orgId
-        isEmailVerified: attributes.email_verified === 'true',
-        isPhoneVerified: attributes.phone_number_verified === 'true',
-      };
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return this.mockUser;
     } catch (error) {
-      console.error('Get current user error:', error);
+      console.error("Get current user error:", error);
       return null;
     }
   }
 
   /**
-   * Check if user is authenticated
+   * Check if user is authenticated (mock)
    */
   async isAuthenticated(): Promise<boolean> {
     try {
-      const user = await Auth.currentAuthenticatedUser();
-      return !!user;
+      return !!this.mockUser;
     } catch (error) {
       return false;
     }
   }
 
   /**
-   * Get current session
+   * Get current session (mock)
    */
-  async getCurrentSession(): Promise<CognitoUserSession | null> {
+  async getCurrentSession(): Promise<any> {
     try {
-      const session = await Auth.currentSession();
-      return session;
+      if (!this.mockUser) return null;
+      return { user: this.mockUser };
     } catch (error) {
-      console.error('Get current session error:', error);
+      console.error("Get current session error:", error);
       return null;
     }
   }
 
   /**
-   * Refresh session
-   */
-  async refreshSession(): Promise<CognitoUserSession> {
-    try {
-      const session = await Auth.currentSession();
-      return await Auth.currentAuthenticatedUser().then(user => {
-        return user.refreshSession(session.getRefreshToken(), (err, session) => {
-          if (err) throw err;
-          return session;
-        });
-      });
-    } catch (error) {
-      console.error('Refresh session error:', error);
-      throw this.handleAuthError(error);
-    }
-  }
-
-  /**
-   * Forgot password
+   * Forgot password (mock)
    */
   async forgotPassword(email: string): Promise<void> {
     try {
-      await Auth.forgotPassword(email);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      console.log(`Password reset email sent to ${email}`);
     } catch (error) {
-      console.error('Forgot password error:', error);
+      console.error("Forgot password error:", error);
       throw this.handleAuthError(error);
     }
   }
 
   /**
-   * Confirm forgot password
+   * Confirm forgot password (mock)
    */
-  async confirmForgotPassword(email: string, code: string, newPassword: string): Promise<void> {
+  async confirmForgotPassword(
+    email: string,
+    code: string,
+    newPassword: string
+  ): Promise<void> {
     try {
-      await Auth.forgotPasswordSubmit(email, code, newPassword);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      console.log("Password reset successful");
     } catch (error) {
-      console.error('Confirm forgot password error:', error);
+      console.error("Confirm forgot password error:", error);
       throw this.handleAuthError(error);
     }
   }
 
   /**
-   * Change password
+   * Change password (mock)
    */
-  async changePassword(oldPassword: string, newPassword: string): Promise<void> {
+  async changePassword(
+    oldPassword: string,
+    newPassword: string
+  ): Promise<void> {
     try {
-      await Auth.changePassword(await Auth.currentAuthenticatedUser(), oldPassword, newPassword);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      console.log("Password changed successfully");
     } catch (error) {
-      console.error('Change password error:', error);
+      console.error("Change password error:", error);
       throw this.handleAuthError(error);
     }
   }
 
   /**
-   * Resend confirmation code
+   * Resend confirmation code (mock)
    */
   async resendConfirmationCode(email: string): Promise<void> {
     try {
-      await Auth.resendSignUp(email);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      console.log(`Confirmation code resent to ${email}`);
     } catch (error) {
-      console.error('Resend confirmation code error:', error);
+      console.error("Resend confirmation code error:", error);
       throw this.handleAuthError(error);
     }
   }
@@ -217,54 +213,51 @@ class AuthService {
     if (error.code) {
       return {
         code: error.code,
-        message: error.message || 'Authentication error',
-        name: error.name || 'AuthError',
+        message: error.message || "Authentication error",
+        name: error.name || "AuthError",
       };
     }
 
     // Handle common error cases
-    if (error.message?.includes('User does not exist')) {
+    if (error.message?.includes("User does not exist")) {
       return {
-        code: 'UserNotFoundException',
-        message: 'User does not exist',
-        name: 'AuthError',
+        code: "UserNotFoundException",
+        message: "User does not exist",
+        name: "AuthError",
       };
     }
 
-    if (error.message?.includes('Incorrect username or password')) {
+    if (error.message?.includes("Incorrect username or password")) {
       return {
-        code: 'NotAuthorizedException',
-        message: 'Incorrect email or password',
-        name: 'AuthError',
+        code: "NotAuthorizedException",
+        message: "Incorrect email or password",
+        name: "AuthError",
       };
     }
 
-    if (error.message?.includes('User is not confirmed')) {
+    if (error.message?.includes("User is not confirmed")) {
       return {
-        code: 'UserNotConfirmedException',
-        message: 'Please confirm your email address',
-        name: 'AuthError',
+        code: "UserNotConfirmedException",
+        message: "Please confirm your email address",
+        name: "AuthError",
       };
     }
 
-    if (error.message?.includes('Password did not conform with policy')) {
+    if (error.message?.includes("Password did not conform with policy")) {
       return {
-        code: 'InvalidPasswordException',
-        message: 'Password does not meet requirements',
-        name: 'AuthError',
+        code: "InvalidPasswordException",
+        message: "Password does not meet requirements",
+        name: "AuthError",
       };
     }
 
     return {
-      code: 'UnknownError',
-      message: error.message || 'An unknown error occurred',
-      name: 'AuthError',
+      code: "UnknownError",
+      message: error.message || "An unknown error occurred",
+      name: "AuthError",
     };
   }
 }
 
 // Create singleton instance
 export const authService = new AuthService();
-
-// Export types
-export type { AuthUser, SignUpData, SignInData, AuthError };

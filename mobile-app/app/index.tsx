@@ -16,10 +16,14 @@ export default function IndexScreen() {
   const { user, isAuthenticated, isLoading, signOut } = useAuthStore();
 
   useEffect(() => {
-    // If not authenticated and not loading, redirect to auth
-    if (!isLoading && !isAuthenticated) {
-      router.replace("/auth");
-    }
+    // Add a small delay to ensure layout is mounted
+    const timer = setTimeout(() => {
+      if (!isLoading && !isAuthenticated) {
+        router.replace("/auth");
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, [isAuthenticated, isLoading, router]);
 
   const handleSignOut = async () => {
