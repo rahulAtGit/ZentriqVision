@@ -91,29 +91,30 @@ export default function SearchScreen() {
     const [showFilters, setShowFilters] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
 
-    // Use the API hook for search
-    const {
-      data: searchData,
-      isLoading,
-      error,
-      refetch,
-    } = useSearchDetections(filters, 50);
+      // Use the API hook for search with pagination
+  const {
+    data: searchData,
+    isLoading,
+    error,
+    refetch,
+  } = useSearchDetections(filters, 8); // Show only 8 results initially
 
-    // Debug the search data structure
-    console.log("SearchScreen render - searchData:", searchData);
-    console.log("SearchScreen render - searchData type:", typeof searchData);
-    if (searchData) {
-      console.log(
-        "SearchScreen render - searchData keys:",
-        Object.keys(searchData)
-      );
-      console.log(
-        "SearchScreen render - searchData.results:",
-        searchData.results
-      );
-    }
+  // Debug the search data structure
+  console.log("SearchScreen render - searchData:", searchData);
+  console.log("SearchScreen render - searchData type:", typeof searchData);
+  if (searchData) {
+    console.log(
+      "SearchScreen render - searchData keys:",
+      Object.keys(searchData)
+    );
+    console.log(
+      "SearchScreen render - searchData.results:",
+      searchData.results
+    );
+  }
 
-    const results = searchData?.results || [];
+  const results = searchData?.results || [];
+  const hasMoreResults = searchData?.nextToken;
 
     const searchDetections = async () => {
       if (!user) {
@@ -323,21 +324,34 @@ export default function SearchScreen() {
             </View>
           )}
 
-          {/* Search Button */}
+                  {/* Search Button */}
+        <TouchableOpacity
+          style={styles.searchButton}
+          onPress={searchDetections}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <ActivityIndicator color="white" />
+          ) : (
+            <>
+              <Ionicons name="search" size={20} color="white" />
+              <Text style={styles.searchButtonText}>Search</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        {/* Load More Button */}
+        {hasMoreResults && results.length > 0 && (
           <TouchableOpacity
-            style={styles.searchButton}
-            onPress={searchDetections}
-            disabled={isLoading}
+            style={styles.loadMoreButton}
+            onPress={() => {
+              // TODO: Implement load more functionality
+              console.log("Load more clicked");
+            }}
           >
-            {isLoading ? (
-              <ActivityIndicator color="white" />
-            ) : (
-              <>
-                <Ionicons name="search" size={20} color="white" />
-                <Text style={styles.searchButtonText}>Search</Text>
-              </>
-            )}
+            <Text style={styles.loadMoreButtonText}>Load More Results</Text>
           </TouchableOpacity>
+        )}
 
           {/* Results */}
           {results.length > 0 && (
@@ -388,6 +402,9 @@ export default function SearchScreen() {
                    );
                  } else if (isDetectionRecord) {
                    // This is a detection record
+                   const confidence = detection.confidence || 0;
+                   const confidencePercent = confidence > 1 ? confidence : confidence * 100;
+                   
                    return (
                      <TouchableOpacity
                        key={`${detection.personId}-${index}`}
@@ -396,11 +413,16 @@ export default function SearchScreen() {
                      >
                        <View style={styles.resultHeader}>
                          <Ionicons name="person" size={24} color="#007AFF" />
-                         <Text style={styles.resultTitle}>
-                           Person {detection.personId}
-                         </Text>
+                         <View style={styles.resultHeaderText}>
+                           <Text style={styles.resultTitle}>
+                             Person Detected
+                           </Text>
+                           <Text style={styles.resultSubtitle}>
+                             Found in video at {detection.timestamp ? new Date(detection.timestamp).toLocaleTimeString() : "unknown time"}
+                           </Text>
+                         </View>
                          <Text style={styles.resultConfidence}>
-                           {(detection.confidence * 100).toFixed(0)}% confidence
+                           {confidencePercent.toFixed(0)}% confidence
                          </Text>
                        </View>
 
@@ -421,9 +443,14 @@ export default function SearchScreen() {
                          )}
                        </View>
 
-                       <Text style={styles.resultTimestamp}>
-                         {new Date(detection.timestamp).toLocaleString()}
-                       </Text>
+                       <View style={styles.resultFooter}>
+                         <Text style={styles.resultTimestamp}>
+                           Video: {detection.videoId}
+                         </Text>
+                         <Text style={styles.resultTimestamp}>
+                           {detection.timestamp ? new Date(detection.timestamp).toLocaleString() : "Unknown time"}
+                         </Text>
+                       </View>
                      </TouchableOpacity>
                    );
                  } else {
@@ -615,12 +642,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 10,
   },
+  resultHeaderText: {
+    flex: 1,
+    marginLeft: 8,
+  },
   resultTitle: {
     fontSize: 16,
     fontWeight: "600",
     color: "#1c1c1e",
-    marginLeft: 8,
-    flex: 1,
+    marginBottom: 2,
+  },
+  resultSubtitle: {
+    fontSize: 12,
+    color: "#8e8e93",
+    fontStyle: "italic",
   },
   resultConfidence: {
     fontSize: 14,
@@ -638,6 +673,29 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#8e8e93",
     fontStyle: "italic",
+  },
+  resultFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#f2f2f7",
+  },
+  loadMoreButton: {
+    backgroundColor: "#f2f2f7",
+    borderRadius: 12,
+    padding: 15,
+    alignItems: "center",
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#007AFF",
+  },
+  loadMoreButtonText: {
+    color: "#007AFF",
+    fontSize: 16,
+    fontWeight: "600",
   },
   noResultsContainer: {
     alignItems: "center",
