@@ -60,11 +60,16 @@ export default function IndexScreen() {
       <View style={styles.content}>
         {/* Header */}
         <View style={styles.header}>
-          <Ionicons name="videocam" size={48} color="#007AFF" />
+          <View style={styles.headerIconContainer}>
+            <Ionicons name="videocam" size={48} color="#007AFF" />
+          </View>
           <Text style={styles.title}>
             Welcome, {user?.givenName || "User"}!
           </Text>
-          <Text style={styles.subtitle}>Video Surveillance AI Dashboard</Text>
+          <Text style={styles.subtitle}>
+            AI-Powered Video Surveillance Dashboard
+          </Text>
+          <Text style={styles.headerSubtitle}>Monitor • Analyze • Secure</Text>
         </View>
 
         {/* User Info */}
@@ -84,10 +89,12 @@ export default function IndexScreen() {
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           <View style={styles.actionGrid}>
             <TouchableOpacity
-              style={styles.actionCard}
+              style={[styles.actionCard, styles.uploadCard]}
               onPress={() => router.push("/upload")}
             >
-              <Ionicons name="cloud-upload" size={32} color="#007AFF" />
+              <View style={styles.actionIconContainer}>
+                <Ionicons name="cloud-upload" size={32} color="#007AFF" />
+              </View>
               <Text style={styles.actionTitle}>Upload Video</Text>
               <Text style={styles.actionSubtitle}>
                 Upload surveillance video
@@ -95,19 +102,23 @@ export default function IndexScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.actionCard}
+              style={[styles.actionCard, styles.libraryCard]}
               onPress={() => router.push("/library")}
             >
-              <Ionicons name="library" size={32} color="#007AFF" />
+              <View style={styles.actionIconContainer}>
+                <Ionicons name="library" size={32} color="#34C759" />
+              </View>
               <Text style={styles.actionTitle}>Video Library</Text>
               <Text style={styles.actionSubtitle}>Browse your videos</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.actionCard}
+              style={[styles.actionCard, styles.searchCard]}
               onPress={() => router.push("/search")}
             >
-              <Ionicons name="search" size={32} color="#007AFF" />
+              <View style={styles.actionIconContainer}>
+                <Ionicons name="search" size={32} color="#FF9500" />
+              </View>
               <Text style={styles.actionTitle}>Search Detections</Text>
               <Text style={styles.actionSubtitle}>
                 Search for people and objects
@@ -115,10 +126,12 @@ export default function IndexScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.actionCard}
+              style={[styles.actionCard, styles.profileCard]}
               onPress={() => router.push("/profile")}
             >
-              <Ionicons name="person-circle" size={32} color="#007AFF" />
+              <View style={styles.actionIconContainer}>
+                <Ionicons name="person-circle" size={32} color="#AF52DE" />
+              </View>
               <Text style={styles.actionTitle}>Profile</Text>
               <Text style={styles.actionSubtitle}>Manage your account</Text>
             </TouchableOpacity>
@@ -208,6 +221,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 30,
   },
+  headerIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#F0F8FF",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 15,
+  },
   title: {
     fontSize: 28,
     fontWeight: "bold",
@@ -218,6 +240,13 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: "#8e8e93",
+    marginBottom: 5,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: "#007AFF",
+    fontWeight: "500",
+    letterSpacing: 0.5,
   },
   userCard: {
     backgroundColor: "white",
@@ -267,14 +296,17 @@ const styles = StyleSheet.create({
   },
   actionGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 15,
+    justifyContent: "space-between",
   },
   actionCard: {
-    flex: 1,
+    width: "48%",
     backgroundColor: "white",
     borderRadius: 12,
     padding: 20,
     alignItems: "center",
+    marginBottom: 15,
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -283,6 +315,31 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
+  },
+  actionIconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 10,
+    backgroundColor: "#F8F9FA",
+  },
+  uploadCard: {
+    borderLeftWidth: 4,
+    borderLeftColor: "#007AFF",
+  },
+  libraryCard: {
+    borderLeftWidth: 4,
+    borderLeftColor: "#34C759",
+  },
+  searchCard: {
+    borderLeftWidth: 4,
+    borderLeftColor: "#FF9500",
+  },
+  profileCard: {
+    borderLeftWidth: 4,
+    borderLeftColor: "#AF52DE",
   },
   actionTitle: {
     fontSize: 16,
@@ -346,13 +403,15 @@ const styles = StyleSheet.create({
   },
   statsGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 15,
+    justifyContent: "space-between",
   },
   statCard: {
-    flex: 1,
+    width: "30%",
     backgroundColor: "white",
     borderRadius: 12,
-    padding: 20,
+    padding: 15,
     alignItems: "center",
     shadowColor: "#000",
     shadowOffset: {

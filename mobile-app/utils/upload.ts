@@ -1,6 +1,7 @@
 // Upload utilities for ZentriqVision mobile app
 
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from "expo-file-system";
+import { Buffer } from "buffer";
 
 export interface UploadProgress {
   loaded: number;
@@ -21,52 +22,67 @@ export class UploadManager {
   static async uploadVideoToS3(
     fileUri: string,
     presignedUrl: string,
-    onProgress?: (progress: UploadProgress) => void
+    onProgress?: (progress: UploadProgress) => void,
+    contentType?: string
   ): Promise<UploadResult> {
     try {
       // Get file info
       const fileInfo = await FileSystem.getInfoAsync(fileUri);
       if (!fileInfo.exists) {
-        throw new Error('File does not exist');
+        throw new Error("File does not exist");
       }
 
       const totalSize = fileInfo.size || 0;
+      console.log(`Starting upload: ${totalSize} bytes`);
 
-      // Create upload task
-      const uploadTask = FileSystem.createUploadTask(
-        presignedUrl,
-        fileUri,
-        {
-          uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-          fieldName: 'file',
-          mimeType: 'video/mp4',
+      // Read file as base64 for fetch upload
+      const fileBase64 = await FileSystem.readAsStringAsync(fileUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // Convert base64 to Uint8Array
+      const fileBytes = new Uint8Array(Buffer.from(fileBase64, "base64"));
+
+      // Use fetch with proper headers for S3 presigned URL
+      const response = await fetch(presignedUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": contentType || "video/mp4",
         },
-        (uploadProgress) => {
-          if (onProgress) {
-            onProgress({
-              loaded: uploadProgress.totalBytesSent,
-              total: totalSize,
-              percentage: (uploadProgress.totalBytesSent / totalSize) * 100,
-            });
-          }
-        }
-      );
+        body: fileBytes,
+      });
 
-      // Start upload
-      const result = await uploadTask.uploadAsync();
-
-      if (result.status === 200) {
+      if (response.ok) {
+        console.log("Upload completed successfully");
         return {
           success: true,
         };
       } else {
-        throw new Error(`Upload failed with status: ${result.status}`);
+        const errorText = await response.text();
+        console.error(
+          `Upload failed with status: ${response.status}, response: ${errorText}`
+        );
+        throw new Error(`Upload failed with status: ${response.status}`);
       }
     } catch (error) {
-      console.error('Upload failed:', error);
+      console.error("Upload failed:", error);
+
+      // Provide more specific error messages
+      let errorMessage = "Upload failed";
+      if (error instanceof Error) {
+        if (error.message.includes("timeout")) {
+          errorMessage =
+            "Upload timed out. Please check your connection and try again.";
+        } else if (error.message.includes("network")) {
+          errorMessage = "Network error. Please check your connection.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Upload failed',
+        error: errorMessage,
       };
     }
   }
@@ -79,7 +95,7 @@ export class UploadManager {
       const fileInfo = await FileSystem.getInfoAsync(fileUri);
       return fileInfo.exists ? (fileInfo.size || 0) / (1024 * 1024) : 0;
     } catch (error) {
-      console.error('Error getting file size:', error);
+      console.error("Error getting file size:", error);
       return 0;
     }
   }
@@ -87,18 +103,21 @@ export class UploadManager {
   /**
    * Validate video file
    */
-  static validateVideoFile(fileUri: string, maxSizeMB: number = 500): {
+  static validateVideoFile(
+    fileUri: string,
+    maxSizeMB: number = 500
+  ): {
     isValid: boolean;
     error?: string;
   } {
     // Check file extension
-    const validExtensions = ['.mp4', '.mov', '.avi', '.mkv'];
-    const fileExtension = fileUri.toLowerCase().split('.').pop();
+    const validExtensions = [".mp4", ".mov", ".avi", ".mkv"];
+    const fileExtension = fileUri.toLowerCase().split(".").pop();
 
     if (!fileExtension || !validExtensions.includes(`.${fileExtension}`)) {
       return {
         isValid: false,
-        error: 'Invalid file format. Supported formats: MP4, MOV, AVI, MKV',
+        error: "Invalid file format. Supported formats: MP4, MOV, AVI, MKV",
       };
     }
 
@@ -110,12 +129,12 @@ export class UploadManager {
    * Format file size for display
    */
   static formatFileSize(bytes: number): string {
-    if (bytes === 0) return '0 Bytes';
+    if (bytes === 0) return "0 Bytes";
 
     const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const sizes = ["Bytes", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
 
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   }
 }

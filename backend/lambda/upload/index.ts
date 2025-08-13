@@ -46,12 +46,12 @@ export const handler = async (
     const videoItem: DynamoDBItem = {
       PK: `ORG#${uploadRequest.orgId}`,
       SK: `VIDEO#${videoId}`,
-      GSI1PK: `STATUS#UPLOADING`,
+      GSI1PK: `STATUS#PROCESSING`,
       GSI1SK: new Date().toISOString(),
       videoId,
       fileName: uploadRequest.fileName,
       fileType: uploadRequest.fileType,
-      status: "UPLOADING",
+      status: "PROCESSING",
       orgId: uploadRequest.orgId,
       userId: authResult.user!.userId,
       s3Key,
@@ -67,11 +67,22 @@ export const handler = async (
       ContentType: uploadRequest.fileType,
     });
 
+    console.log("S3 PutObjectCommand:", {
+      bucket: process.env["VIDEO_BUCKET"]!,
+      key: s3Key,
+      contentType: uploadRequest.fileType,
+    });
+
     const presignedUrl = await getPresignedUrl(command, 3600); // 1 hour expiry
+    console.log(
+      "Generated presigned URL:",
+      presignedUrl.substring(0, 100) + "..."
+    );
 
     return createSuccessResponse({
       videoId,
       presignedUrl,
+      s3Key,
       expiresIn: 3600,
     });
   } catch (error) {
@@ -113,7 +124,11 @@ async function getPresignedUrl(
   command: any,
   expiresIn: number
 ): Promise<string> {
-  // This would use AWS SDK v3's getSignedUrl
-  // For now, returning a placeholder
-  return `https://example.com/presigned-url-${Date.now()}`;
+  try {
+    const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
+    return await getSignedUrl(s3Client, command, { expiresIn });
+  } catch (error) {
+    console.error("Error generating presigned URL:", error);
+    throw new Error("Failed to generate upload URL");
+  }
 }

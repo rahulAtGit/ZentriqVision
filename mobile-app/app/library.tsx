@@ -15,6 +15,7 @@ import {
 import { useRouter } from "expo-router";
 import { useAuthStore } from "../hooks/useAuthStore";
 import { useApi } from "../hooks/useApi";
+import { apiService } from "../services/api";
 import { Ionicons } from "@expo/vector-icons";
 
 const { width } = Dimensions.get("window");
@@ -41,53 +42,44 @@ export default function LibraryScreen() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
-  // Mock data for now - replace with actual API call
-  const mockVideos: VideoItem[] = [
-    {
-      id: "1",
-      fileName: "surveillance_001.mp4",
-      status: "PROCESSED",
-      uploadedAt: "2025-08-11T18:31:33.524119",
-      duration: 120,
-      faceCount: 15,
-      orgId: "test-org",
-    },
-    {
-      id: "2",
-      fileName: "camera_feed_002.mp4",
-      status: "PROCESSING",
-      uploadedAt: "2025-08-11T17:45:22.123456",
-      duration: 180,
-      faceCount: 8,
-      orgId: "test-org",
-    },
-    {
-      id: "3",
-      fileName: "security_003.mp4",
-      status: "PROCESSED",
-      uploadedAt: "2025-08-11T16:20:15.789012",
-      duration: 90,
-      faceCount: 23,
-      orgId: "test-org",
-    },
-  ];
-
   useEffect(() => {
     loadVideos();
-  }, []);
+  }, [filterStatus]);
 
   const loadVideos = async () => {
     try {
       setIsLoading(true);
-      // TODO: Replace with actual API call
-      // const response = await apiService.getVideos(user?.orgId);
-      // setVideos(response.videos);
 
-      // For now, use mock data
-      setVideos(mockVideos);
+      if (!user?.orgId) {
+        Alert.alert("Error", "User organization not found");
+        return;
+      }
+
+      const response = await apiService.getVideos(user.orgId, {
+        status: filterStatus === "all" ? undefined : filterStatus,
+        limit: 50,
+      });
+
+      // Transform API response to match VideoItem interface
+      const transformedVideos: VideoItem[] = response.results.map(
+        (video: any) => ({
+          id: video.videoId || video.id,
+          fileName: video.fileName,
+          status: video.status,
+          uploadedAt: video.uploadedAt,
+          duration: video.duration,
+          faceCount: video.faceCount,
+          orgId: video.orgId,
+          thumbnailUrl: video.thumbnailUrl,
+        })
+      );
+
+      setVideos(transformedVideos);
     } catch (error) {
       console.error("Failed to load videos:", error);
       Alert.alert("Error", "Failed to load videos");
+      // Fallback to empty array
+      setVideos([]);
     } finally {
       setIsLoading(false);
     }

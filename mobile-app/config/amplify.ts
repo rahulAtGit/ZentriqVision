@@ -1,14 +1,14 @@
-import { Amplify } from 'aws-amplify';
-import { env } from './environment';
+import { Amplify } from "aws-amplify";
+import { env, apiEndpoints } from "./environment";
 
 // AWS Amplify configuration for ZentriqVision
 const amplifyConfig = {
   Auth: {
     // Cognito User Pool configuration
     Cognito: {
-      userPoolId: env.userPoolId || 'us-east-1_your-user-pool-id',
-      userPoolClientId: env.userPoolClientId || 'your-user-pool-client-id',
-      signUpVerificationMethod: 'code', // 'code' | 'link'
+      userPoolId: env.userPoolId,
+      userPoolClientId: env.userPoolClientId,
+      signUpVerificationMethod: "code", // 'code' | 'link'
       loginWith: {
         email: true,
         phone: true,
@@ -38,19 +38,19 @@ const amplifyConfig = {
   API: {
     GraphQL: {
       endpoint: env.apiUrl,
-      region: env.region || 'us-east-1',
-      defaultAuthMode: 'userPool',
+      region: env.region,
+      defaultAuthMode: "userPool",
     },
     REST: {
       endpoints: [
         {
-          name: 'ZentriqVisionAPI',
+          name: "ZentriqVisionAPI",
           endpoint: env.apiUrl,
-          region: env.region || 'us-east-1',
+          region: env.region,
           custom_header: async () => {
             // Add authentication headers
             return {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             };
           },
         },
@@ -60,8 +60,8 @@ const amplifyConfig = {
   // Storage configuration (for S3)
   Storage: {
     AWSS3: {
-      bucket: env.videoBucket || 'zentriqvision-videos',
-      region: env.region || 'us-east-1',
+      bucket: env.videoBucket,
+      region: env.region,
     },
   },
 };
@@ -70,9 +70,14 @@ const amplifyConfig = {
 export const initializeAmplify = () => {
   try {
     Amplify.configure(amplifyConfig);
-    console.log('Amplify configured successfully');
+    if (env.enableDebugLogging) {
+      console.log("Amplify configured successfully");
+      console.log("User Pool ID:", env.userPoolId);
+      console.log("API URL:", env.apiUrl);
+      console.log("S3 Bucket:", env.videoBucket);
+    }
   } catch (error) {
-    console.error('Failed to configure Amplify:', error);
+    console.error("Failed to configure Amplify:", error);
   }
 };
 

@@ -15,6 +15,33 @@ import { useApi } from "../hooks/useApi";
 import { UploadManager, UploadProgress } from "../utils/upload";
 import { Ionicons } from "@expo/vector-icons";
 
+// Helper function to determine MIME type based on file extension
+const getMimeType = (fileName: string, uri: string, fallbackType?: string) => {
+  // Try to get extension from filename first
+  let extension = fileName ? fileName.toLowerCase().split(".").pop() : null;
+
+  // If no extension from filename, try to get it from URI
+  if (!extension) {
+    const uriParts = uri.split(".");
+    extension =
+      uriParts.length > 1 ? uriParts[uriParts.length - 1].toLowerCase() : null;
+  }
+
+  const mimeTypes: { [key: string]: string } = {
+    mp4: "video/mp4",
+    mov: "video/quicktime",
+    avi: "video/x-msvideo",
+    mkv: "video/x-matroska",
+  };
+
+  if (extension && mimeTypes[extension]) {
+    return mimeTypes[extension];
+  }
+
+  // Fallback to the type from ImagePicker or default
+  return fallbackType || "video/mp4";
+};
+
 export default function UploadScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
@@ -26,6 +53,7 @@ export default function UploadScreen() {
     null
   );
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const pickVideo = async () => {
     try {
@@ -50,6 +78,17 @@ export default function UploadScreen() {
       if (!result.canceled && result.assets[0]) {
         const video = result.assets[0];
 
+        // Debug: Log what ImagePicker actually returned
+        console.log("ImagePicker result:", {
+          fileName: video.fileName,
+          uri: video.uri,
+          type: video.type,
+          fileSize: video.fileSize,
+          width: video.width,
+          height: video.height,
+          duration: video.duration,
+        });
+
         // Validate video file
         const validation = UploadManager.validateVideoFile(video.uri);
         if (!validation.isValid) {
@@ -61,6 +100,7 @@ export default function UploadScreen() {
         }
 
         setSelectedVideo(video);
+        setUploadError(null); // Clear any previous errors
       }
     } catch (error) {
       Alert.alert("Error", "Failed to pick video");
@@ -83,15 +123,92 @@ export default function UploadScreen() {
 
     try {
       // Step 1: Get presigned URL from our API
-      const uploadData = {
-        fileName: selectedVideo.fileName || `video_${Date.now()}.mp4`,
-        fileType: selectedVideo.type || "video/mp4",
+
+      // Try to get a better filename from the URI if ImagePicker's filename is generic
+      const getBetterFileName = (originalName: string, uri: string) => {
+        if (originalName && originalName !== "19" && originalName !== "video") {
+          return originalName;
+        }
+
+        // Extract filename from URI
+        const uriParts = uri.split("/");
+        const lastPart = uriParts[uriParts.length - 1];
+
+        // If URI has a meaningful filename, use it
+        if (lastPart && lastPart.includes(".") && lastPart !== "19") {
+          return lastPart;
+        }
+
+        // Fallback to timestamp-based name
+        return `video_${Date.now()}.mp4`;
       };
+
+      const uploadData = {
+        fileName: getBetterFileName(
+          selectedVideo.fileName || "",
+          selectedVideo.uri
+        ),
+        fileType: getMimeType(
+          selectedVideo.fileName || "",
+          selectedVideo.uri,
+          selectedVideo.type
+        ),
+        orgId: user?.orgId || "default-org",
+        userId: user?.userId || "unknown",
+      };
+
+      // Debug logging
+      console.log("Upload data:", uploadData);
+      console.log("Selected video:", selectedVideo);
+      console.log("File type validation:", {
+        fileName: selectedVideo.fileName,
+        originalType: selectedVideo.type,
+        computedType: uploadData.fileType,
+        allowedTypes: ["video/mp4", "video/quicktime", "video/x-msvideo"],
+      });
+
+      // Additional debugging for file details
+      console.log("File details:", {
+        uri: selectedVideo.uri,
+        fileName: selectedVideo.fileName,
+        fileSize: selectedVideo.fileSize,
+        type: selectedVideo.type,
+        width: selectedVideo.width,
+        height: selectedVideo.height,
+        duration: selectedVideo.duration,
+      });
+
+      // Check if we can extract extension from URI
+      const uriParts = selectedVideo.uri.split(".");
+      const uriExtension =
+        uriParts.length > 1 ? uriParts[uriParts.length - 1] : "no-extension";
+      console.log("URI analysis:", {
+        uri: selectedVideo.uri,
+        uriExtension: uriExtension,
+        fileNameExtension: selectedVideo.fileName
+          ? selectedVideo.fileName.split(".").pop()
+          : "no-filename",
+      });
 
       const uploadResponse = await uploadVideoMutation.mutateAsync(uploadData);
 
       if (!uploadResponse.presignedUrl) {
         throw new Error("Failed to get upload URL");
+      }
+
+      console.log("Got presigned URL, starting S3 upload...");
+      console.log(
+        "Presigned URL:",
+        uploadResponse.presignedUrl.substring(0, 100) + "..."
+      );
+
+      // Check if we can reach the S3 endpoint
+      try {
+        const url = new URL(uploadResponse.presignedUrl);
+        console.log("S3 endpoint:", url.origin);
+        console.log("S3 path:", url.pathname);
+      } catch (e) {
+        console.log("Could not parse presigned URL");
       }
 
       // Step 2: Upload to S3 using presigned URL
@@ -100,7 +217,13 @@ export default function UploadScreen() {
         uploadResponse.presignedUrl,
         (progress) => {
           setUploadProgress(progress);
-        }
+          console.log(
+            `Upload progress: ${progress.percentage.toFixed(1)}% (${
+              progress.loaded
+            }/${progress.total} bytes)`
+          );
+        },
+        uploadData.fileType // Pass the content type from the original request
       );
 
       if (uploadResult.success) {
@@ -119,14 +242,20 @@ export default function UploadScreen() {
           ]
         );
       } else {
+        // Check if it's a timeout error and suggest retry
+        if (uploadResult.error?.includes("timeout")) {
+          console.log("Upload timed out - this might be a network issue");
+          console.log("Suggesting user to check network and retry");
+        }
         throw new Error(uploadResult.error || "Upload failed");
       }
     } catch (error) {
       console.error("Upload error:", error);
-      Alert.alert(
-        "Error",
-        error instanceof Error ? error.message : "Failed to upload video"
-      );
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to upload video";
+      setUploadError(errorMessage);
+      // Also show alert for immediate feedback
+      Alert.alert("Error", errorMessage);
     } finally {
       setUploading(false);
       setUploadProgress(null);
@@ -157,6 +286,14 @@ export default function UploadScreen() {
               </Text>
               <Text style={styles.videoSize}>
                 {UploadManager.formatFileSize(selectedVideo.fileSize || 0)}
+              </Text>
+              <Text style={styles.videoType}>
+                Type: {selectedVideo.type || "Unknown"} | Detected:{" "}
+                {getMimeType(
+                  selectedVideo.fileName || "",
+                  selectedVideo.uri,
+                  selectedVideo.type
+                )}
               </Text>
               <TouchableOpacity
                 style={styles.changeButton}
@@ -195,6 +332,31 @@ export default function UploadScreen() {
                 {UploadManager.formatFileSize(uploadProgress.loaded)} /{" "}
                 {UploadManager.formatFileSize(uploadProgress.total)}
               </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Upload Error Banner */}
+        {uploadError && (
+          <View style={styles.errorBanner}>
+            <Ionicons name="alert-circle" size={20} color="#FF3B30" />
+            <Text style={styles.errorText}>Upload error: {uploadError}</Text>
+            <View style={styles.errorActions}>
+              {uploadError.includes("timeout") && (
+                <TouchableOpacity
+                  style={styles.retryButton}
+                  onPress={uploadVideo}
+                  disabled={uploading}
+                >
+                  <Text style={styles.retryButtonText}>Retry Upload</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={styles.errorCloseButton}
+                onPress={() => setUploadError(null)}
+              >
+                <Ionicons name="close" size={20} color="#FF3B30" />
+              </TouchableOpacity>
             </View>
           </View>
         )}
@@ -314,6 +476,13 @@ const styles = StyleSheet.create({
     color: "#8e8e93",
     marginBottom: 15,
   },
+  videoType: {
+    fontSize: 12,
+    color: "#007AFF",
+    marginBottom: 15,
+    fontFamily: "monospace",
+    textAlign: "center",
+  },
   changeButton: {
     backgroundColor: "#f2f2f7",
     paddingHorizontal: 20,
@@ -400,5 +569,39 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     marginLeft: 8,
+  },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFE5E5",
+    borderRadius: 8,
+    padding: 15,
+    marginBottom: 20,
+  },
+  errorText: {
+    flex: 1,
+    color: "#FF3B30",
+    fontSize: 14,
+    marginLeft: 10,
+  },
+  errorCloseButton: {
+    padding: 5,
+  },
+  errorActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+    gap: 12,
+  },
+  retryButton: {
+    backgroundColor: "#007AFF",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  retryButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });

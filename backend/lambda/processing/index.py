@@ -186,10 +186,17 @@ def process_s3_video_upload(event, context):
         # Extract video metadata from S3 key
         parts = key.split('/')
         if len(parts) >= 3:
-            org_id = parts[0]
+            org_id = parts[1]  # videos/default-org/video_id/filename
             video_id = parts[2]
         else:
             print(f"Invalid key format: {key}")
+            continue
+        
+        # Check if this is a video file
+        video_extensions = ['.mp4', '.mov', '.avi', '.mkv', '.quicktime']
+        file_extension = os.path.splitext(parts[-1])[1].lower()
+        if file_extension not in video_extensions:
+            print(f"Skipping non-video file: {key} (extension: {file_extension})")
             continue
         
         print(f"Processing video {video_id} for org {org_id}")

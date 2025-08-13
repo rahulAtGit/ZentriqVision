@@ -61,6 +61,13 @@ export class ZentriqVisionStack extends cdk.Stack {
           mutable: true,
         },
       },
+      customAttributes: {
+        orgId: new cognito.StringAttribute({
+          mutable: true,
+          minLen: 1,
+          maxLen: 256,
+        }),
+      },
       passwordPolicy: {
         minLength: 8,
         requireLowercase: true,
@@ -196,6 +203,78 @@ export class ZentriqVisionStack extends cdk.Stack {
       memorySize: 512,
     });
 
+    // User Profile Lambda function
+    const userLambda = new lambda.Function(this, "UserLambda", {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: "bundle.handler",
+      code: lambda.Code.fromAsset("../backend/lambda/user/dist"),
+      environment: {
+        DATA_TABLE: dataTable.tableName,
+        USER_POOL_ID: userPool.userPoolId,
+        USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+      },
+      timeout: cdk.Duration.minutes(1),
+      memorySize: 512,
+    });
+
+    // Add post-confirmation trigger to automatically create user profile
+    const postConfirmationLambda = new lambda.Function(
+      this,
+      "PostConfirmationLambda",
+      {
+        runtime: lambda.Runtime.NODEJS_18_X,
+        handler: "index.handler",
+        code: lambda.Code.fromInline(`
+        const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
+        const { DynamoDBDocumentClient, PutCommand } = require('@aws-sdk/lib-dynamodb');
+        
+        const client = new DynamoDBClient();
+        const docClient = DynamoDBDocumentClient.from(client);
+        
+        exports.handler = async (event) => {
+          try {
+            const { userName, request } = event;
+            const { userAttributes } = request;
+            
+            // Create user profile in DynamoDB
+            const userProfile = {
+              PK: \`USER#\${userName}\`,
+              SK: \`PROFILE#\${userName}\`,
+              userId: userName,
+              email: userAttributes.email,
+              givenName: userAttributes.given_name || 'User',
+              phoneNumber: userAttributes.phone_number,
+              orgId: userAttributes['custom:orgId'] || 'default-org',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+            
+            await docClient.send(new PutCommand({
+              TableName: process.env.DATA_TABLE,
+              Item: userProfile
+            }));
+            
+            console.log('User profile created successfully:', userName);
+            return event;
+          } catch (error) {
+            console.error('Error creating user profile:', error);
+            return event;
+          }
+        };
+      `),
+        environment: {
+          DATA_TABLE: dataTable.tableName,
+        },
+        timeout: cdk.Duration.seconds(30),
+        memorySize: 256,
+      }
+    );
+
+    userPool.addTrigger(
+      cognito.UserPoolOperation.POST_CONFIRMATION,
+      postConfirmationLambda
+    );
+
     // Create Rekognition service role
     const rekognitionRole = new iam.Role(this, "RekognitionServiceRole", {
       assumedBy: new iam.ServicePrincipal("rekognition.amazonaws.com"),
@@ -311,6 +390,7 @@ export class ZentriqVisionStack extends cdk.Stack {
     const uploadResource = api.root.addResource("upload");
     const searchResource = api.root.addResource("search");
     const videosResource = api.root.addResource("videos");
+    const userResource = api.root.addResource("user");
 
     // Auth endpoints
     authResource
@@ -349,10 +429,51 @@ export class ZentriqVisionStack extends cdk.Stack {
       new apigateway.LambdaIntegration(searchLambda)
     );
 
+    // Videos list endpoint
+    videosResource.addMethod(
+      "GET",
+      new apigateway.LambdaIntegration(searchLambda)
+    );
+
     // Video playback endpoint
     videosResource
       .addResource("{videoId}")
       .addMethod("GET", new apigateway.LambdaIntegration(playbackLambda));
+
+    // User profile endpoints
+    userResource.addMethod("GET", new apigateway.LambdaIntegration(userLambda));
+    userResource.addMethod("PUT", new apigateway.LambdaIntegration(userLambda));
+
+    // Health check endpoint
+    api.root.addMethod(
+      "GET",
+      new apigateway.LambdaIntegration(
+        new lambda.Function(this, "HealthCheckLambda", {
+          runtime: lambda.Runtime.NODEJS_18_X,
+          handler: "index.handler",
+          code: lambda.Code.fromInline(`
+            exports.handler = async (event) => {
+              return {
+                statusCode: 200,
+                headers: {
+                  "Content-Type": "application/json",
+                  "Access-Control-Allow-Origin": "*",
+                  "Access-Control-Allow-Headers": "Content-Type,Authorization",
+                  "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+                },
+                body: JSON.stringify({
+                  status: "healthy",
+                  timestamp: new Date().toISOString(),
+                  service: "ZentriqVision API"
+                })
+              };
+            };
+          `),
+          timeout: cdk.Duration.seconds(10),
+          memorySize: 128,
+        })
+      )
+    );
 
     // 7. Grant permissions
     videoBucket.grantReadWrite(uploadLambda);
@@ -362,6 +483,10 @@ export class ZentriqVisionStack extends cdk.Stack {
     dataTable.grantReadWriteData(processingLambda);
     dataTable.grantReadData(searchLambda);
     dataTable.grantReadData(playbackLambda);
+    dataTable.grantReadWriteData(userLambda);
+
+    // Grant DynamoDB permissions to post-confirmation Lambda
+    dataTable.grantWriteData(postConfirmationLambda);
     videoProcessingTopic.grantPublish(processingLambda);
 
     // Create MediaConvert service role
@@ -426,7 +551,7 @@ export class ZentriqVisionStack extends cdk.Stack {
     videoBucket.addEventNotification(
       s3.EventType.OBJECT_CREATED,
       new s3n.LambdaDestination(processingLambda),
-      { suffix: ".mp4" }
+      { prefix: "videos/" }  // Trigger for all files in videos/ folder
     );
 
     // 9. Stack Outputs for mobile app configuration
