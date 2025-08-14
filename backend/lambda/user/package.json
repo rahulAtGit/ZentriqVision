@@ -5,6 +5,8 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
+    "bundle": "esbuild dist/lambda/user/index.js --bundle --platform=node --target=node18 --external:aws-sdk --external:@aws-sdk/client-dynamodb --external:@aws-sdk/util-dynamodb --external:@aws-sdk/client-s3 --external:@aws-sdk/s3-request-presigner --outfile=dist/bundle.js",
+    "build:lambda": "npm run build && npm run bundle",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
@@ -15,7 +17,8 @@
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.0",
-    "@types/node": "^18.0.0",
+    "@types/node": "^4.9.0",
+    "esbuild": "^0.25.8",
     "typescript": "^4.9.0"
   },
   "keywords": [
