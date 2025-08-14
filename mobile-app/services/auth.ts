@@ -68,6 +68,10 @@ class AuthService {
           Name: "given_name",
           Value: data.givenName,
         }),
+        new CognitoUserAttribute({
+          Name: "custom:orgId",
+          Value: "default-org", // For now, assign all users to default-org
+        }),
       ];
 
       if (data.phoneNumber) {

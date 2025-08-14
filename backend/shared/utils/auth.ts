@@ -81,11 +81,24 @@ class AuthHelper {
       }) as JwtPayload;
 
       // Extract user information
+      const customOrgId = decoded["custom:orgId"];
+      const cognitoGroups = decoded["cognito:groups"];
+      const finalOrgId = customOrgId || cognitoGroups?.[0] || "default-org";
+
+      console.log("JWT Token Debug:", {
+        sub: decoded["sub"],
+        email: decoded["email"],
+        customOrgId,
+        cognitoGroups,
+        finalOrgId,
+        tokenKeys: Object.keys(decoded),
+      });
+
       const user: AuthenticatedUser = {
         userId: decoded["sub"]!,
         email: decoded["email"]!,
         givenName: decoded["given_name"] || decoded["name"] || "",
-        orgId: decoded["cognito:groups"]?.[0] || "default-org",
+        orgId: finalOrgId,
       };
 
       return { isValid: true, user };

@@ -1,7 +1,5 @@
 import { Stack } from "expo-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { initializeAmplify } from "../config/amplify";
-import { useEffect } from "react";
 
 // Create a client
 const queryClient = new QueryClient({
@@ -14,11 +12,6 @@ const queryClient = new QueryClient({
 });
 
 export default function RootLayout() {
-  useEffect(() => {
-    // Initialize Amplify only once when app starts
-    initializeAmplify();
-  }, []);
-
   return (
     <QueryClientProvider client={queryClient}>
       <Stack

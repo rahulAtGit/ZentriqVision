@@ -27,7 +27,7 @@ export default function SearchScreen() {
       if (authStore && !authStore.isAuthenticated && !authStore.isLoading) {
         authStore.initializeAuth();
       }
-    }, [authStore]);
+    }, [authStore.isAuthenticated, authStore.isLoading]); // More specific dependencies
 
     // Debug logging
     console.log("SearchScreen render - authStore:", authStore);
@@ -91,30 +91,30 @@ export default function SearchScreen() {
     const [showFilters, setShowFilters] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
 
-      // Use the API hook for search with pagination
-  const {
-    data: searchData,
-    isLoading,
-    error,
-    refetch,
-  } = useSearchDetections(filters, 8); // Show only 8 results initially
+    // Use the API hook for search with pagination
+    const {
+      data: searchData,
+      isLoading,
+      error,
+      refetch,
+    } = useSearchDetections(filters, 8); // Show only 8 results initially
 
-  // Debug the search data structure
-  console.log("SearchScreen render - searchData:", searchData);
-  console.log("SearchScreen render - searchData type:", typeof searchData);
-  if (searchData) {
-    console.log(
-      "SearchScreen render - searchData keys:",
-      Object.keys(searchData)
-    );
-    console.log(
-      "SearchScreen render - searchData.results:",
-      searchData.results
-    );
-  }
+    // Debug the search data structure
+    console.log("SearchScreen render - searchData:", searchData);
+    console.log("SearchScreen render - searchData type:", typeof searchData);
+    if (searchData) {
+      console.log(
+        "SearchScreen render - searchData keys:",
+        Object.keys(searchData)
+      );
+      console.log(
+        "SearchScreen render - searchData.results:",
+        searchData.results
+      );
+    }
 
-  const results = searchData?.results || [];
-  const hasMoreResults = searchData?.nextToken;
+    const results = searchData?.results || [];
+    const hasMoreResults = searchData?.nextToken;
 
     const searchDetections = async () => {
       if (!user) {
@@ -324,145 +324,157 @@ export default function SearchScreen() {
             </View>
           )}
 
-                  {/* Search Button */}
-        <TouchableOpacity
-          style={styles.searchButton}
-          onPress={searchDetections}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <>
-              <Ionicons name="search" size={20} color="white" />
-              <Text style={styles.searchButtonText}>Search</Text>
-            </>
-          )}
-        </TouchableOpacity>
-
-        {/* Load More Button */}
-        {hasMoreResults && results.length > 0 && (
+          {/* Search Button */}
           <TouchableOpacity
-            style={styles.loadMoreButton}
-            onPress={() => {
-              // TODO: Implement load more functionality
-              console.log("Load more clicked");
-            }}
+            style={styles.searchButton}
+            onPress={searchDetections}
+            disabled={isLoading}
           >
-            <Text style={styles.loadMoreButtonText}>Load More Results</Text>
+            {isLoading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <>
+                <Ionicons name="search" size={20} color="white" />
+                <Text style={styles.searchButtonText}>Search</Text>
+              </>
+            )}
           </TouchableOpacity>
-        )}
+
+          {/* Load More Button */}
+          {hasMoreResults && results.length > 0 && (
+            <TouchableOpacity
+              style={styles.loadMoreButton}
+              onPress={() => {
+                // TODO: Implement load more functionality
+                console.log("Load more clicked");
+              }}
+            >
+              <Text style={styles.loadMoreButtonText}>Load More Results</Text>
+            </TouchableOpacity>
+          )}
 
           {/* Results */}
           {results.length > 0 && (
             <View style={styles.resultsContainer}>
-                           <Text style={styles.resultsTitle}>
-               {results.length} item{results.length !== 1 ? "s" : ""} found
-             </Text>
+              <Text style={styles.resultsTitle}>
+                {results.length} item{results.length !== 1 ? "s" : ""} found
+              </Text>
 
-                             {results.map((detection: any, index: number) => {
-                 // Handle both video records and detection records
-                 const isVideoRecord = detection.status && detection.fileName;
-                 const isDetectionRecord = detection.attributes && detection.personId;
-                 
-                 if (isVideoRecord) {
-                   // This is a video record, not a detection
-                   return (
-                     <TouchableOpacity
-                       key={`${detection.videoId}-${index}`}
-                       style={styles.resultCard}
-                       onPress={() => navigateToPlayback(detection.videoId)}
-                     >
-                       <View style={styles.resultHeader}>
-                         <Ionicons name="videocam" size={24} color="#007AFF" />
-                         <Text style={styles.resultTitle}>
-                           {detection.fileName}
-                         </Text>
-                         <Text style={styles.resultConfidence}>
-                           Status: {detection.status}
-                         </Text>
-                       </View>
+              {results.map((detection: any, index: number) => {
+                // Handle both video records and detection records
+                const isVideoRecord = detection.status && detection.fileName;
+                const isDetectionRecord =
+                  detection.attributes && detection.personId;
 
-                       <View style={styles.resultDetails}>
-                         <Text style={styles.resultDetail}>
-                           Video ID: {detection.videoId}
-                         </Text>
-                         <Text style={styles.resultDetail}>
-                           Uploaded: {new Date(detection.uploadedAt).toLocaleString()}
-                         </Text>
-                         <Text style={styles.resultDetail}>
-                           File Type: {detection.fileType}
-                         </Text>
-                       </View>
+                if (isVideoRecord) {
+                  // This is a video record, not a detection
+                  return (
+                    <TouchableOpacity
+                      key={`${detection.videoId}-${index}`}
+                      style={styles.resultCard}
+                      onPress={() => navigateToPlayback(detection.videoId)}
+                    >
+                      <View style={styles.resultHeader}>
+                        <Ionicons name="videocam" size={24} color="#007AFF" />
+                        <Text style={styles.resultTitle}>
+                          {detection.fileName}
+                        </Text>
+                        <Text style={styles.resultConfidence}>
+                          Status: {detection.status}
+                        </Text>
+                      </View>
 
-                       <Text style={styles.resultTimestamp}>
-                         {detection.status === "UPLOADING" ? "Processing..." : "Ready"}
-                       </Text>
-                     </TouchableOpacity>
-                   );
-                 } else if (isDetectionRecord) {
-                   // This is a detection record
-                   const confidence = detection.confidence || 0;
-                   const confidencePercent = confidence > 1 ? confidence : confidence * 100;
-                   
-                   return (
-                     <TouchableOpacity
-                       key={`${detection.personId}-${index}`}
-                       style={styles.resultCard}
-                       onPress={() => navigateToPlayback(detection.videoId)}
-                     >
-                       <View style={styles.resultHeader}>
-                         <Ionicons name="person" size={24} color="#007AFF" />
-                         <View style={styles.resultHeaderText}>
-                           <Text style={styles.resultTitle}>
-                             Person Detected
-                           </Text>
-                           <Text style={styles.resultSubtitle}>
-                             Found in video at {detection.timestamp ? new Date(detection.timestamp).toLocaleTimeString() : "unknown time"}
-                           </Text>
-                         </View>
-                         <Text style={styles.resultConfidence}>
-                           {confidencePercent.toFixed(0)}% confidence
-                         </Text>
-                       </View>
+                      <View style={styles.resultDetails}>
+                        <Text style={styles.resultDetail}>
+                          Video ID: {detection.videoId}
+                        </Text>
+                        <Text style={styles.resultDetail}>
+                          Uploaded:{" "}
+                          {new Date(detection.uploadedAt).toLocaleString()}
+                        </Text>
+                        <Text style={styles.resultDetail}>
+                          File Type: {detection.fileType}
+                        </Text>
+                      </View>
 
-                       <View style={styles.resultDetails}>
-                         <Text style={styles.resultDetail}>
-                           Age: {detection.attributes?.ageBucket || "Unknown"}
-                         </Text>
-                         <Text style={styles.resultDetail}>
-                           Gender: {detection.attributes?.gender || "Unknown"}
-                         </Text>
-                         <Text style={styles.resultDetail}>
-                           Emotion: {detection.attributes?.emotion || "Unknown"}
-                         </Text>
-                         {detection.attributes?.upperColor && (
-                           <Text style={styles.resultDetail}>
-                             Upper: {detection.attributes.upperColor}
-                           </Text>
-                         )}
-                       </View>
+                      <Text style={styles.resultTimestamp}>
+                        {detection.status === "UPLOADING"
+                          ? "Processing..."
+                          : "Ready"}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                } else if (isDetectionRecord) {
+                  // This is a detection record
+                  const confidence = detection.confidence || 0;
+                  const confidencePercent =
+                    confidence > 1 ? confidence : confidence * 100;
 
-                       <View style={styles.resultFooter}>
-                         <Text style={styles.resultTimestamp}>
-                           Video: {detection.videoId}
-                         </Text>
-                         <Text style={styles.resultTimestamp}>
-                           {detection.timestamp ? new Date(detection.timestamp).toLocaleString() : "Unknown time"}
-                         </Text>
-                       </View>
-                     </TouchableOpacity>
-                   );
-                 } else {
-                   // Unknown record type
-                   return (
-                     <View key={`unknown-${index}`} style={styles.resultCard}>
-                       <Text>Unknown record type</Text>
-                       <Text>{JSON.stringify(detection, null, 2)}</Text>
-                     </View>
-                   );
-                 }
-               })}
+                  return (
+                    <TouchableOpacity
+                      key={`${detection.personId}-${index}`}
+                      style={styles.resultCard}
+                      onPress={() => navigateToPlayback(detection.videoId)}
+                    >
+                      <View style={styles.resultHeader}>
+                        <Ionicons name="person" size={24} color="#007AFF" />
+                        <View style={styles.resultHeaderText}>
+                          <Text style={styles.resultTitle}>
+                            Person Detected
+                          </Text>
+                          <Text style={styles.resultSubtitle}>
+                            Found in video at{" "}
+                            {detection.timestamp
+                              ? new Date(
+                                  detection.timestamp
+                                ).toLocaleTimeString()
+                              : "unknown time"}
+                          </Text>
+                        </View>
+                        <Text style={styles.resultConfidence}>
+                          {confidencePercent.toFixed(0)}% confidence
+                        </Text>
+                      </View>
+
+                      <View style={styles.resultDetails}>
+                        <Text style={styles.resultDetail}>
+                          Age: {detection.attributes?.ageBucket || "Unknown"}
+                        </Text>
+                        <Text style={styles.resultDetail}>
+                          Gender: {detection.attributes?.gender || "Unknown"}
+                        </Text>
+                        <Text style={styles.resultDetail}>
+                          Emotion: {detection.attributes?.emotion || "Unknown"}
+                        </Text>
+                        {detection.attributes?.upperColor && (
+                          <Text style={styles.resultDetail}>
+                            Upper: {detection.attributes.upperColor}
+                          </Text>
+                        )}
+                      </View>
+
+                      <View style={styles.resultFooter}>
+                        <Text style={styles.resultTimestamp}>
+                          Video: {detection.videoId}
+                        </Text>
+                        <Text style={styles.resultTimestamp}>
+                          {detection.timestamp
+                            ? new Date(detection.timestamp).toLocaleString()
+                            : "Unknown time"}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                } else {
+                  // Unknown record type
+                  return (
+                    <View key={`unknown-${index}`} style={styles.resultCard}>
+                      <Text>Unknown record type</Text>
+                      <Text>{JSON.stringify(detection, null, 2)}</Text>
+                    </View>
+                  );
+                }
+              })}
             </View>
           )}
 

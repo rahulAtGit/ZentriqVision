@@ -69,6 +69,8 @@ jspm_packages/
 .rts2_cache_es/
 .rts2_cache_umd/
 
+test-auth-flow.js
+
 docs/context
 
 # Lambda layers (generated binaries)
