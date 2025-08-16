@@ -53,6 +53,16 @@ npm run build
 npm run bundle
 cd ../../..
 
+# Build Videos Lambda
+echo "Building and bundling Videos Lambda..."
+cd backend/lambda/videos
+rm -rf node_modules
+rm -rf dist
+npm install
+npm run build
+npm run bundle
+cd ../../..
+
 # Build Shared utilities
 echo "Building Shared utilities..."
 cd backend/shared

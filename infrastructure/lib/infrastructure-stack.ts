@@ -217,6 +217,19 @@ export class ZentriqVisionStack extends cdk.Stack {
       memorySize: 512,
     });
 
+    // Videos Lambda function
+    const videosLambda = new lambda.Function(this, "VideosLambda", {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: "bundle.handler",
+      code: lambda.Code.fromAsset("../backend/lambda/videos/dist"),
+      environment: {
+        DATA_TABLE: dataTable.tableName,
+        USER_POOL_ID: userPool.userPoolId,
+      },
+      timeout: cdk.Duration.minutes(1),
+      memorySize: 512,
+    });
+
     // Add post-confirmation trigger to automatically create user profile
     const postConfirmationLambda = new lambda.Function(
       this,
@@ -435,9 +448,18 @@ export class ZentriqVisionStack extends cdk.Stack {
       new apigateway.LambdaIntegration(searchLambda)
     );
 
+    // Video details and playback endpoints
+    const videoIdResource = videosResource.addResource("{videoId}");
+
+    // Video details endpoint
+    videoIdResource.addMethod(
+      "GET",
+      new apigateway.LambdaIntegration(videosLambda)
+    );
+
     // Video playback endpoint
-    videosResource
-      .addResource("{videoId}")
+    videoIdResource
+      .addResource("playback")
       .addMethod("GET", new apigateway.LambdaIntegration(playbackLambda));
 
     // User profile endpoints
@@ -483,6 +505,7 @@ export class ZentriqVisionStack extends cdk.Stack {
     dataTable.grantReadWriteData(processingLambda);
     dataTable.grantReadData(searchLambda);
     dataTable.grantReadData(playbackLambda);
+    dataTable.grantReadData(videosLambda);
     dataTable.grantReadWriteData(userLambda);
 
     // Grant DynamoDB permissions to post-confirmation Lambda

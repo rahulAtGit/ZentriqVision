@@ -62,8 +62,8 @@ export default function LibraryScreen() {
 
       // Transform API response to match VideoItem interface
       const transformedVideos: VideoItem[] = response.results.map(
-        (video: any) => ({
-          id: video.videoId || video.id,
+        (video: any, index: number) => ({
+          id: video.videoId || video.id || `video_${index}_${Date.now()}`,
           fileName: video.fileName,
           status: video.status,
           uploadedAt: video.uploadedAt,
@@ -74,7 +74,44 @@ export default function LibraryScreen() {
         })
       );
 
-      setVideos(transformedVideos);
+      // Debug: Check for duplicate IDs
+      const videoIds = transformedVideos.map((v) => v.id);
+      const duplicateIds = videoIds.filter(
+        (id, index) => videoIds.indexOf(id) !== index
+      );
+      if (duplicateIds.length > 0) {
+        console.warn("Duplicate video IDs found:", duplicateIds);
+        console.log("All video IDs:", videoIds);
+      }
+
+      // Remove duplicates based on ID
+      const uniqueVideos = transformedVideos.filter(
+        (video, index, self) =>
+          index === self.findIndex((v) => v.id === video.id)
+      );
+
+      // Additional validation: ensure all videos have valid IDs
+      const validVideos = uniqueVideos.filter(
+        (video) => video.id && video.id !== "undefined" && video.id !== "null"
+      );
+
+      if (validVideos.length !== uniqueVideos.length) {
+        console.log(
+          `Filtered out ${
+            uniqueVideos.length - validVideos.length
+          } videos with invalid IDs`
+        );
+      }
+
+      if (uniqueVideos.length !== transformedVideos.length) {
+        console.log(
+          `Removed ${
+            transformedVideos.length - uniqueVideos.length
+          } duplicate videos`
+        );
+      }
+
+      setVideos(validVideos);
     } catch (error) {
       console.error("Failed to load videos:", error);
       Alert.alert("Error", "Failed to load videos");
@@ -315,7 +352,7 @@ export default function LibraryScreen() {
           data={filteredVideos}
           renderItem={viewMode === "grid" ? renderGridItem : renderListItem}
           numColumns={viewMode === "grid" ? COLUMN_COUNT : 1}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item, index) => `${item.id}_${index}`}
           contentContainerStyle={styles.videosList}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />

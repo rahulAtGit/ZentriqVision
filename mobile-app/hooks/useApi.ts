@@ -1,6 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiService } from '../services/api';
-import { useAuthStore } from './useAuthStore';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiService } from "../services/api";
+import { useAuthStore } from "./useAuthStore";
 
 // Custom hook for API operations
 export const useApi = () => {
@@ -15,7 +15,7 @@ export const useApi = () => {
         fileType: string;
       }) => {
         if (!user) {
-          throw new Error('User not authenticated');
+          throw new Error("User not authenticated");
         }
 
         return apiService.uploadVideo({
@@ -26,8 +26,8 @@ export const useApi = () => {
       },
       onSuccess: () => {
         // Invalidate and refetch videos list
-        queryClient.invalidateQueries({ queryKey: ['videos'] });
-        queryClient.invalidateQueries({ queryKey: ['detections'] });
+        queryClient.invalidateQueries({ queryKey: ["videos"] });
+        queryClient.invalidateQueries({ queryKey: ["detections"] });
       },
     });
   };
@@ -35,10 +35,10 @@ export const useApi = () => {
   // Search Detections Query
   const useSearchDetections = (filters?: any, limit?: number) => {
     return useQuery({
-      queryKey: ['detections', filters, limit],
+      queryKey: ["detections", filters, limit],
       queryFn: async () => {
         if (!user) {
-          throw new Error('User not authenticated');
+          throw new Error("User not authenticated");
         }
 
         return apiService.searchDetections({
@@ -54,10 +54,10 @@ export const useApi = () => {
   // Get Video Details Query
   const useVideoDetails = (videoId: string) => {
     return useQuery({
-      queryKey: ['video', videoId],
+      queryKey: ["video", videoId],
       queryFn: async () => {
         if (!user) {
-          throw new Error('User not authenticated');
+          throw new Error("User not authenticated");
         }
 
         return apiService.getVideo(videoId, user.orgId);
@@ -69,10 +69,10 @@ export const useApi = () => {
   // Get Video Playback URL Query
   const useVideoPlayback = (videoId: string) => {
     return useQuery({
-      queryKey: ['video-playback', videoId],
+      queryKey: ["video-playback", videoId],
       queryFn: async () => {
         if (!user) {
-          throw new Error('User not authenticated');
+          throw new Error("User not authenticated");
         }
 
         return apiService.getVideoPlaybackUrl(videoId, user.orgId);

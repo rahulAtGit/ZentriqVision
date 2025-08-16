@@ -1,12 +1,7 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
-import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { DynamoDBHelper } from "../../shared/utils/dynamodb";
 import { authHelper } from "../../shared/utils/auth";
 
-const s3Client = new S3Client({
-  region: process.env["AWS_REGION"] || "us-east-1",
-});
 const dynamoHelper = new DynamoDBHelper(process.env["DATA_TABLE"]!);
 
 export const handler = async (
@@ -21,6 +16,24 @@ export const handler = async (
       return createErrorResponse(401, authResult.error || "Unauthorized");
     }
 
+    const { httpMethod } = event;
+
+    if (httpMethod === "GET") {
+      return await handleGetVideo(event, authResult.user!);
+    }
+
+    return createErrorResponse(405, "Method not allowed");
+  } catch (error) {
+    console.error("Error in videos handler:", error);
+    return createErrorResponse(500, "Internal server error");
+  }
+};
+
+async function handleGetVideo(
+  event: APIGatewayProxyEvent,
+  user: any
+): Promise<APIGatewayProxyResult> {
+  try {
     const { videoId } = event.pathParameters || {};
     if (!videoId) {
       return createErrorResponse(400, "Video ID is required");
@@ -28,7 +41,7 @@ export const handler = async (
 
     // Get video metadata from DynamoDB
     const video = await dynamoHelper.get(
-      `ORG#${authResult.user!.orgId}`,
+      `ORG#${user.orgId}`,
       `VIDEO#${videoId}`
     );
 
@@ -37,40 +50,33 @@ export const handler = async (
     }
 
     // Check if user has access to this video
-    if (video["orgId"] !== authResult.user!.orgId) {
+    if (video["orgId"] !== user.orgId) {
       return createErrorResponse(403, "Access denied");
     }
 
-    // Check if video is processed
-    if (video["status"] !== "PROCESSED") {
-      return createErrorResponse(400, "Video is not ready for playback");
-    }
-
-    // Generate presigned URL for video streaming
-    const command = new GetObjectCommand({
-      Bucket: process.env["VIDEO_BUCKET"]!,
-      Key: video["s3Key"],
-      ResponseContentType: "video/mp4",
-    });
-
-    const presignedUrl = await getPresignedUrl(command, 3600); // 1 hour expiry
-
+    // Return video details
     return createSuccessResponse({
-      videoId,
+      videoId: video["videoId"] || videoId,
       fileName: video["fileName"],
       status: video["status"],
-      playbackUrl: presignedUrl, // Changed from presignedUrl to playbackUrl
+      uploadedAt: video["uploadedAt"],
+      duration: video["duration"],
+      faceCount: video["faceCount"],
+      orgId: video["orgId"],
+      thumbnailUrl: video["thumbnailUrl"],
+      detections: video["detections"] || [],
       metadata: {
-        duration: video["duration"],
         size: video["size"],
-        uploadedAt: video["uploadedAt"],
+        s3Key: video["s3Key"],
+        processingStartedAt: video["processingStartedAt"],
+        processingCompletedAt: video["processingCompletedAt"],
       },
     });
   } catch (error) {
-    console.error("Error in playback handler:", error);
-    return createErrorResponse(500, "Internal server error");
+    console.error("Error getting video details:", error);
+    return createErrorResponse(500, "Failed to get video details");
   }
-};
+}
 
 function createSuccessResponse(data: any): APIGatewayProxyResult {
   return {
@@ -99,11 +105,4 @@ function createErrorResponse(
     },
     body: JSON.stringify({ error: message }),
   };
-}
-
-async function getPresignedUrl(
-  command: GetObjectCommand,
-  expiresIn: number
-): Promise<string> {
-  return await getSignedUrl(s3Client, command, { expiresIn });
 }

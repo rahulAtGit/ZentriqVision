@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -40,6 +40,23 @@ export default function AuthScreen() {
   const [pendingEmail, setPendingEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
 
+  // Debug state changes
+  useEffect(() => {
+    console.log("Auth state changed:", {
+      isSignUp,
+      isConfirming,
+      isForgotPassword,
+      isConfirmingForgotPassword,
+      pendingEmail,
+    });
+  }, [
+    isSignUp,
+    isConfirming,
+    isForgotPassword,
+    isConfirmingForgotPassword,
+    pendingEmail,
+  ]);
+
   const handleSignIn = async () => {
     if (!email || !password) {
       Alert.alert("Error", "Please fill in all required fields");
@@ -66,15 +83,24 @@ export default function AuthScreen() {
     }
 
     try {
+      console.log("Starting sign up process...");
       await signUp({ email, password, givenName, phoneNumber });
+      console.log("Sign up successful, setting confirmation state...");
+
+      // Set the confirmation state first
       setPendingEmail(email);
       setIsConfirming(true);
+
+      console.log("Confirmation state set:", { email, isConfirming: true });
+
+      // Then show the alert
       Alert.alert(
         "Success",
         "Account created! Please check your email for a confirmation code.",
         [{ text: "OK" }]
       );
     } catch (error) {
+      console.error("Sign up error:", error);
       // Error is handled by the store
     }
   };

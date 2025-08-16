@@ -67,21 +67,9 @@ export default function IndexScreen() {
             Welcome, {user?.givenName || "User"}!
           </Text>
           <Text style={styles.subtitle}>
-            AI-Powered Video Surveillance Dashboard
+            AI-Powered Video Surveillance Dashboard 8
           </Text>
           <Text style={styles.headerSubtitle}>Monitor • Analyze • Secure</Text>
-        </View>
-
-        {/* User Info */}
-        <View style={styles.userCard}>
-          <View style={styles.userInfo}>
-            <Ionicons name="person-circle" size={40} color="#007AFF" />
-            <View style={styles.userDetails}>
-              <Text style={styles.userName}>{user?.givenName || "User"}</Text>
-              <Text style={styles.userEmail}>{user?.email}</Text>
-              <Text style={styles.userOrg}>Organization: {user?.orgId}</Text>
-            </View>
-          </View>
         </View>
 
         {/* Quick Actions */}
@@ -297,8 +285,8 @@ const styles = StyleSheet.create({
   actionGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 15,
-    justifyContent: "space-between",
+    gap: 8,
+    justifyContent: "center",
   },
   actionCard: {
     width: "48%",
